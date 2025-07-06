@@ -535,10 +535,11 @@ class DoomBoxKiosk:
             self.screen.blit(part, (current_x, y))
             current_x += part.get_width()
         
-        # Draw right skull
+        # Draw right skull (mirrored)
         if self.skull_icon:
             skull_y = y + 10  # Slightly lower to align with text
-            self.screen.blit(self.skull_icon, (start_x + total_width_with_skulls - 64, skull_y))
+            mirrored_skull = pygame.transform.flip(self.skull_icon, True, False)  # Flip horizontally
+            self.screen.blit(mirrored_skull, (start_x + total_width_with_skulls - 64, skull_y))
         
         return total_width_with_skulls
 
@@ -576,7 +577,7 @@ class DoomBoxKiosk:
         # Main title with Doom 2016 font and skull icons
         title_y = 25
         self.draw_doom_header(
-            "Shmegl's Slayers",
+            "Slaughter with Shmegl",
             self.DISPLAY_SIZE[0]//2,
             title_y
         )
@@ -707,7 +708,7 @@ class DoomBoxKiosk:
         title_width = self.font_large.size(title_text)[0]
         
         # Calculate positions for centered layout with trophy icons
-        trophy_spacing = 40 if self.trophy_icon else 0
+        trophy_spacing = 60 if self.trophy_icon else 0  # Increased spacing
         total_width = title_width + (trophy_spacing * 2)
         start_x = scores_section_x + scores_section_width//2 - total_width//2
         
