@@ -51,48 +51,81 @@ apt install -y \
     feh \
     mosquitto-clients \
     sqlite3 \
-    g++ \
-    make \
-    cmake \
-    libsdl2-dev \
-    zlib1g-dev \
-    libbz2-dev \
-    libjpeg-dev \
-    libfluidsynth-dev \
-    libgme-dev \
-    libopenal-dev \
-    libmpg123-dev \
-    libsndfile1-dev \
-    libgtk-3-dev \
-    timidity \
-    nasm \
-    libgl1-mesa-dev \
-    tar \
-    libsdl1.2-dev \
-    libglew-dev
+    prboom-plus
 
-echo -e "${YELLOW}Compiling LZDoom for Radxa Zero...${NC}"
-cd /tmp
-if [ ! -d "lzdoom" ]; then
-    echo "Cloning LZDoom repository..."
-    git clone https://github.com/christianhaitian/lzdoom.git
+echo -e "${YELLOW}Installing PrBoom-Plus DOOM engine...${NC}"
+echo "PrBoom-Plus already installed via package manager."
+
+# Create lzdoom wrapper script for compatibility
+echo "Creating lzdoom compatibility wrapper..."
+cat > /usr/local/bin/lzdoom << 'EOF'
+#!/bin/bash
+# PrBoom-Plus wrapper script for DoomBox compatibility
+DOOM_ARGS=()
+IWAD_PATH=""
+PLAYER_NAME=""
+WIDTH="640"
+HEIGHT="480"
+FULLSCREEN=false
+
+# Parse arguments to convert lzdoom/gzdoom style to prboom-plus
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -iwad)
+            IWAD_PATH="$2"
+            shift 2
+            ;;
+        -width)
+            WIDTH="$2"
+            shift 2
+            ;;
+        -height)
+            HEIGHT="$2"
+            shift 2
+            ;;
+        -fullscreen)
+            FULLSCREEN=true
+            shift
+            ;;
+        +name)
+            PLAYER_NAME="$2"
+            shift 2
+            ;;
+        *)
+            # Pass through other arguments
+            DOOM_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Build PrBoom-Plus command
+PRBOOM_CMD=(prboom-plus)
+
+if [ -n "$IWAD_PATH" ]; then
+    PRBOOM_CMD+=(-iwad "$IWAD_PATH")
 fi
 
-cd lzdoom
-mkdir -p build
-cd build
+# Set resolution
+PRBOOM_CMD+=(-width "$WIDTH" -height "$HEIGHT")
 
-echo "Configuring LZDoom build..."
-cmake ../.
+# Set fullscreen mode
+if [ "$FULLSCREEN" = true ]; then
+    PRBOOM_CMD+=(-fullscreen)
+fi
 
-echo "Compiling LZDoom (this may take a while)..."
-make -j2
+# Add any additional arguments
+PRBOOM_CMD+=("${DOOM_ARGS[@]}")
 
-echo "Installing LZDoom..."
-cp lzdoom /usr/local/bin/
+# Log the command for debugging
+echo "DOOM Command: ${PRBOOM_CMD[*]}" >> /opt/doombox/logs/doom.log
+
+# Execute PrBoom-Plus
+exec "${PRBOOM_CMD[@]}"
+EOF
+
 chmod +x /usr/local/bin/lzdoom
-
-echo -e "${GREEN}LZDoom compilation complete!${NC}"
+echo -e "${GREEN}PrBoom-Plus installed with lzdoom compatibility wrapper!${NC}"
 
 echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
 cd "$DOOMBOX_DIR"
@@ -169,7 +202,29 @@ class DoomBoxKiosk:
         self.db_path = f"{self.base_dir}/scores.db"
         
         # Game state
-        self.current_player = None
+        self.current_player = echo -e "${GREEN}=========================================="
+echo -e "  DoomBox Setup Complete!"
+echo -e "=========================================="
+echo -e "Files created in: $DOOMBOX_DIR"
+echo -e "DOOM engine: PrBoom-Plus with lzdoom compatibility wrapper"
+echo -e "Wrapper script: /usr/local/bin/lzdoom"
+echo -e ""
+echo -e "Next steps:"
+echo -e "1. Update the QR code URL in kiosk.py"
+echo -e "2. Pair your DualShock 4 controller:"
+echo -e "   ${DOOMBOX_DIR}/pair_controller.sh"
+echo -e "3. Test DOOM engine: ${DOOMBOX_DIR}/test_doom.sh"
+echo -e "4. Test kiosk: ${DOOMBOX_DIR}/test_kiosk.sh"
+echo -e "5. Enable auto-start: systemctl enable doombox"
+echo -e "6. Reboot to start kiosk automatically"
+echo -e ""
+echo -e "The kiosk will auto-start on boot with systemd."
+echo -e "Use 'systemctl status doombox' to check status."
+echo -e "Use Konami code on controller for test games!"
+echo -e ""
+echo -e "${GREEN}✅ PrBoom-Plus installed successfully!${NC}"
+echo -e "${GREEN}✅ Fast, lightweight, and ARM-optimized!${NC}"
+echo -e "${NC}"
         self.game_running = False
         
         # Controller
@@ -607,32 +662,4 @@ EOF
 chmod +x "$DOOMBOX_DIR/test_kiosk.sh"
 
 echo -e "${YELLOW}Setting permissions...${NC}"
-chown -R root:root "$DOOMBOX_DIR"
-chmod +x "$DOOMBOX_DIR/kiosk.py"
-
-echo -e "${YELLOW}Enabling services...${NC}"
-systemctl daemon-reload
-systemctl enable doombox.service
-
-echo -e "${GREEN}=========================================="
-echo -e "  DoomBox Setup Complete!"
-echo -e "=========================================="
-echo -e "Files created in: $DOOMBOX_DIR"
-echo -e "LZDoom compiled and installed to: /usr/local/bin/lzdoom"
-echo -e ""
-echo -e "Next steps:"
-echo -e "1. Update the QR code URL in kiosk.py"
-echo -e "2. Pair your DualShock 4 controller:"
-echo -e "   ${DOOMBOX_DIR}/pair_controller.sh"
-echo -e "3. Test LZDoom: ${DOOMBOX_DIR}/test_doom.sh"
-echo -e "4. Test kiosk: ${DOOMBOX_DIR}/test_kiosk.sh"
-echo -e "5. Enable auto-start: systemctl enable doombox"
-echo -e "6. Reboot to start kiosk automatically"
-echo -e ""
-echo -e "The kiosk will auto-start on boot with systemd."
-echo -e "Use 'systemctl status doombox' to check status."
-echo -e "Use Konami code on controller for test games!"
-echo -e "${NC}"
-
-echo -e "${YELLOW}Note: LZDoom compilation can take 10-30 minutes on Radxa Zero.${NC}"
-echo -e "${YELLOW}If compilation fails, check build dependencies and try again.${NC}"
+chown -R root:
