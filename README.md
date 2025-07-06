@@ -335,6 +335,14 @@ doombox/
 
 **Status**: ✅ Kiosk display now fully functional with Doom 2016 fonts, proper icons, and video backgrounds
 
+### 2025-07-06 - Visual Design Improvements
+- **Fixed draw_doom_header method placement** - moved from CleanUIRenderer to DoomBoxKiosk class to resolve AttributeError
+- **Updated header text** from "Shmegl's Slayers" to "Slaughter with Shmegl" for more impact
+- **Mirrored right skull icon** to face inward using pygame.transform.flip for better symmetry
+- **Increased trophy icon spacing** in TOP SCORES section from 40px to 60px for better visual balance
+- **Resolved X server startup issues** caused by method accessibility problems
+- **Service now runs stable** with all visual enhancements properly applied
+
 ---
 
 *Built for satan 🖤*
