@@ -253,4 +253,14 @@ doombox/
   - Comprehensive diagnostics and troubleshooting tools
   - Color-coded output with verbose logging options
 
+### 2025-07-06: DietPi AutoStart Configuration
+- **Goal**: Set up automatic kiosk startup on boot using DietPi's autologin system
+- **Status**: Controller support confirmed working in dsda-doom with config in `/root/.dsda-doom/dsda-doom.cfg`
+- **Implementation**: 
+  - Created `dietpi-custom-script.sh` for DietPi AutoStart integration
+  - Built `setup-dietpi-autostart.sh` installer script
+  - Configured custom AutoStart (index 7) to launch DoomBox kiosk
+  - Ready for MQTT server integration on separate host for remote game triggering
+- **Next Phase**: Test autologin functionality and set up MQTT communication
+
 *Built for satan 🖤*
