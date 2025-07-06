@@ -86,91 +86,29 @@ class RetroKioskRenderer:
         # Animation states
         self.blink_state = 0
         self.scroll_offset = 0
-        self.sparkle_positions = []
 
-        # Initialize sparkles
-        for _ in range(20):
-            self.sparkle_positions.append([
-                random.randint(0, display_size[0]),
-                random.randint(0, display_size[1]),
-                random.randint(1, 3)  # size
-            ])
+        # Removed sparkle effects for cleaner look
 
-    def get_rainbow_color(self, offset=0):
-        """Get cycling rainbow color for retro effect"""
-        index = ((self.frame_count + offset) // 10) % len(self.rainbow_colors)
-        return self.rainbow_colors[index]
+    def get_static_color(self, color_name='TERMINAL_AMBER'):
+        """Get static color for clean design"""
+        return self.RETRO_COLORS[color_name]
 
-    def draw_retro_border(self, rect, thickness=3):
-        """Draw a classic early web border"""
-        x, y, w, h = rect
-        # Outer border - dark
-        pygame.draw.rect(self.screen, self.RETRO_COLORS['DARK_GRAY'], (x-thickness, y-thickness, w+2*thickness, h+2*thickness))
-        # Inner border - light
-        pygame.draw.rect(self.screen, self.RETRO_COLORS['LIGHT_GRAY'], (x-thickness+1, y-thickness+1, w+2*thickness-2, h+2*thickness-2))
-        # Content area
-        pygame.draw.rect(self.screen, self.RETRO_COLORS['BLACK'], rect)
-
-    def draw_blinking_text(self, font, text, pos, color1, color2=None):
-        """Draw blinking text like old web sites"""
-        if color2 is None:
-            color2 = self.RETRO_COLORS['BLACK']
-
-        if (self.frame_count // 30) % 2:  # Blink every 30 frames
-            color = color1
-        else:
-            color = color2
-
-        surface = font.render(text, True, color)
-        self.screen.blit(surface, pos)
-        return surface.get_rect(topleft=pos)
-
-    def draw_scrolling_text(self, font, text, y, speed=2):
-        """Draw scrolling marquee text"""
-        surface = font.render(text, True, self.get_rainbow_color())
-        text_width = surface.get_width()
-
-        # Calculate scroll position
-        scroll_x = self.display_size[0] - (self.frame_count * speed) % (text_width + self.display_size[0])
-
-        self.screen.blit(surface, (scroll_x, y))
-
-        # Draw second copy for seamless loop
-        if scroll_x > -text_width:
-            self.screen.blit(surface, (scroll_x + text_width + 50, y))
-
-    def draw_sparkles(self):
-        """Draw animated sparkles across the screen"""
-        for sparkle in self.sparkle_positions:
-            if random.randint(0, 10) == 0:  # Random sparkle animation
-                color = random.choice(list(self.RETRO_COLORS.values()))
-                pygame.draw.circle(self.screen, color, (sparkle[0], sparkle[1]), sparkle[2])
-
-            # Move sparkle
-            sparkle[0] += random.randint(-1, 1)
-            sparkle[1] += random.randint(-1, 1)
-
-            # Wrap around screen
-            sparkle[0] = sparkle[0] % self.display_size[0]
-            sparkle[1] = sparkle[1] % self.display_size[1]
+    def draw_clean_border(self, rect, thickness=2):
+        """Draw a clean border for overlay boxes"""
+        pygame.draw.rect(self.screen, self.RETRO_COLORS['LIGHT_GRAY'], rect, thickness)
 
     def draw_retro_button(self, rect, text, font, pressed=False):
-        """Draw a classic 90s style button"""
+        """Draw a clean button"""
         x, y, w, h = rect
 
         if pressed:
             # Pressed state
             pygame.draw.rect(self.screen, self.RETRO_COLORS['DARK_GRAY'], rect)
-            pygame.draw.line(self.screen, self.RETRO_COLORS['BLACK'], (x, y), (x+w, y), 2)  # Top
-            pygame.draw.line(self.screen, self.RETRO_COLORS['BLACK'], (x, y), (x, y+h), 2)  # Left
             text_pos = (x + w//2 - font.size(text)[0]//2 + 1, y + h//2 - font.size(text)[1]//2 + 1)
         else:
             # Normal state
             pygame.draw.rect(self.screen, self.RETRO_COLORS['LIGHT_GRAY'], rect)
-            pygame.draw.line(self.screen, self.RETRO_COLORS['WHITE'], (x, y), (x+w, y), 2)  # Top
-            pygame.draw.line(self.screen, self.RETRO_COLORS['WHITE'], (x, y), (x, y+h), 2)  # Left
-            pygame.draw.line(self.screen, self.RETRO_COLORS['DARK_GRAY'], (x+w, y), (x+w, y+h), 2)  # Right
-            pygame.draw.line(self.screen, self.RETRO_COLORS['DARK_GRAY'], (x, y+h), (x+w, y+h), 2)  # Bottom
+            pygame.draw.rect(self.screen, self.RETRO_COLORS['WHITE'], rect, 2)
             text_pos = (x + w//2 - font.size(text)[0]//2, y + h//2 - font.size(text)[1]//2)
 
         text_surface = font.render(text, True, self.RETRO_COLORS['BLACK'])
@@ -321,46 +259,53 @@ class DoomBoxKiosk:
                 logger.error(f"Icon setup error: {e}")
 
     def setup_retro_fonts(self):
-        """Initialize retro fonts"""
+        """Initialize retro fonts with proper sizing for clean layout"""
         try:
             # Try to load custom fonts, fallback to system fonts with retro styling
             try:
                 # First check if we have actual font files (not placeholders)
-                puffin_path = f"{self.fonts_dir}/puffin.ttf"
+                puffin_path = f"{self.fonts_dir}/Puffin Arcade Liquid.ttf"
+                if not os.path.exists(puffin_path):
+                    puffin_path = f"{self.fonts_dir}/puffin.ttf"
+                
                 if os.path.exists(puffin_path) and os.path.getsize(puffin_path) > 100:
-                    self.font_huge = pygame.font.Font(puffin_path, 72)
-                    self.font_large = pygame.font.Font(puffin_path, 48)
+                    # Large title font for header (30% of screen height)
+                    self.font_huge = pygame.font.Font(puffin_path, 84)
+                    self.font_large = pygame.font.Font(puffin_path, 56)
                 else:
                     raise FileNotFoundError("No valid Puffin font found")
             except:
                 # Fallback to bold system font for retro feel
-                self.font_huge = pygame.font.SysFont('courier', 72, bold=True)
-                self.font_large = pygame.font.SysFont('courier', 48, bold=True)
+                self.font_huge = pygame.font.SysFont('arial', 84, bold=True)
+                self.font_large = pygame.font.SysFont('arial', 56, bold=True)
 
             try:
                 # Check if we have actual font files (not placeholders)
                 minecraft_path = f"{self.fonts_dir}/minecraft.ttf"
+                if not os.path.exists(minecraft_path):
+                    minecraft_path = f"{self.fonts_dir}/Minecraft.ttf"
+                
                 if os.path.exists(minecraft_path) and os.path.getsize(minecraft_path) > 100:
-                    self.font_medium = pygame.font.Font(minecraft_path, 32)
-                    self.font_small = pygame.font.Font(minecraft_path, 24)
-                    self.font_tiny = pygame.font.Font(minecraft_path, 18)
+                    self.font_medium = pygame.font.Font(minecraft_path, 36)
+                    self.font_small = pygame.font.Font(minecraft_path, 28)
+                    self.font_tiny = pygame.font.Font(minecraft_path, 22)
                 else:
                     raise FileNotFoundError("No valid Minecraft font found")
             except:
                 # Fallback to monospace for pixelated feel
-                self.font_medium = pygame.font.SysFont('monospace', 32, bold=True)
-                self.font_small = pygame.font.SysFont('monospace', 24, bold=True)
-                self.font_tiny = pygame.font.SysFont('monospace', 18, bold=True)
+                self.font_medium = pygame.font.SysFont('monospace', 36, bold=True)
+                self.font_small = pygame.font.SysFont('monospace', 28, bold=True)
+                self.font_tiny = pygame.font.SysFont('monospace', 22, bold=True)
 
-            logger.info("Retro fonts initialized successfully")
+            logger.info("Clean layout fonts initialized successfully")
         except Exception as e:
             logger.error(f"Font setup error: {e}")
             # Ultimate fallback
-            self.font_huge = pygame.font.Font(None, 72)
-            self.font_large = pygame.font.Font(None, 48)
-            self.font_medium = pygame.font.Font(None, 32)
-            self.font_small = pygame.font.Font(None, 24)
-            self.font_tiny = pygame.font.Font(None, 18)
+            self.font_huge = pygame.font.Font(None, 84)
+            self.font_large = pygame.font.Font(None, 56)
+            self.font_medium = pygame.font.Font(None, 36)
+            self.font_small = pygame.font.Font(None, 28)
+            self.font_tiny = pygame.font.Font(None, 22)
 
     def load_pixel_icons(self):
         """Load pixel icons for UI elements"""
@@ -731,119 +676,114 @@ class DoomBoxKiosk:
             logger.debug(f"Controller input: {input_name}")
             self.check_konami_code(input_name)
 
+    def draw_clean_overlay_box(self, rect, alpha=200):
+        """Draw a clean semi-transparent overlay box"""
+        overlay = pygame.Surface((rect[2], rect[3]))
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(alpha)
+        self.screen.blit(overlay, (rect[0], rect[1]))
+        
+        # Add subtle border
+        pygame.draw.rect(self.screen, self.retro.RETRO_COLORS['DARK_GRAY'], rect, 2)
+
     def draw_retro_screen(self):
-        """Draw the main retro-styled kiosk screen"""
+        """Draw the main clean kiosk screen optimized for 4:3 display"""
         # Get video background frame
         video_frame = self.get_video_frame()
         if video_frame:
-            # Darken the video for overlay readability
-            darkened = pygame.Surface(self.DISPLAY_SIZE)
-            darkened.fill((0, 0, 0))
-            darkened.set_alpha(128)  # Semi-transparent overlay
-
             self.screen.blit(video_frame, (0, 0))
-            self.screen.blit(darkened, (0, 0))
         else:
-            # Fallback animated background
+            # Fallback static background
             self.screen.fill(self.retro.RETRO_COLORS['BLACK'])
-            # Add some retro grid lines
-            for x in range(0, self.DISPLAY_SIZE[0], 40):
-                color = (*self.retro.RETRO_COLORS['DARK_GRAY'][:3], 50)
-                pygame.draw.line(self.screen, self.retro.RETRO_COLORS['DARK_GRAY'],
-                               (x, 0), (x, self.DISPLAY_SIZE[1]))
-            for y in range(0, self.DISPLAY_SIZE[1], 40):
-                pygame.draw.line(self.screen, self.retro.RETRO_COLORS['DARK_GRAY'],
-                               (0, y), (self.DISPLAY_SIZE[0], y))
 
-        # Draw sparkle effects
-        self.retro.draw_sparkles()
-
-        # Main title with cycling colors and pixel icons
-        title_y = 30
-        skull_icon = self.icons.get('skull')
-        if skull_icon:
-            self.screen.blit(skull_icon, (50, title_y))
-            self.screen.blit(skull_icon, (self.DISPLAY_SIZE[0] - 82, title_y))
-
-        title_color = self.retro.get_rainbow_color()
-        title_surface = self.font_huge.render("shmegl's DoomBox", True, title_color)
+        # Calculate layout areas for 4:3 (1280x960) display
+        header_height = int(self.DISPLAY_SIZE[1] * 0.3)  # 30% of height for header
+        margin = 40
+        
+        # Header area (top 30%)
+        header_rect = (0, 0, self.DISPLAY_SIZE[0], header_height)
+        self.draw_clean_overlay_box(header_rect, alpha=180)
+        
+        # Main title with large Puffin Arcade Liquid font
+        title_y = 50
+        title_surface = self.font_huge.render("shmegl's DoomBox", True, self.retro.RETRO_COLORS['TERMINAL_AMBER'])
         title_rect = title_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=title_y)
-
-        # Add glow effect to title
+        
+        # Add subtle glow effect
         for offset in [(2, 2), (-2, -2), (2, -2), (-2, 2)]:
-            glow_surface = self.font_huge.render("shmegl's DoomBox", True, self.retro.RETRO_COLORS['BLACK'])
+            glow_surface = self.font_huge.render("shmegl's DoomBox", True, self.retro.RETRO_COLORS['DARK_GRAY'])
             self.screen.blit(glow_surface, (title_rect.x + offset[0], title_rect.y + offset[1]))
-
+        
         self.screen.blit(title_surface, title_rect)
-
-        # Blinking subtitle with trophy icon
-        subtitle_y = title_y + 80
+        
+        # Subtitle with trophy icon
+        subtitle_y = title_y + 100
         trophy_icon = self.icons.get('trophy')
         if trophy_icon:
-            self.screen.blit(trophy_icon, (self.DISPLAY_SIZE[0] // 2 - 200, subtitle_y))
+            trophy_x = self.DISPLAY_SIZE[0] // 2 - 200
+            self.screen.blit(trophy_icon, (trophy_x, subtitle_y))
+        
+        subtitle_surface = self.font_large.render("Highest score gets a free tattoo!", True, self.retro.RETRO_COLORS['FIRE_RED'])
+        subtitle_rect = subtitle_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=subtitle_y)
+        self.screen.blit(subtitle_surface, subtitle_rect)
+        
+        # Instruction text
+        instruction_y = subtitle_y + 60
+        instruction_surface = self.font_medium.render("SCAN THE QR CODE TO ENTER THE BATTLE", True, self.retro.RETRO_COLORS['CYBER_GREEN'])
+        instruction_rect = instruction_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=instruction_y)
+        self.screen.blit(instruction_surface, instruction_rect)
 
-        self.retro.draw_blinking_text(
-            self.font_large,
-            "Highest score gets a free tattoo!",
-            (self.DISPLAY_SIZE[0] // 2 - 170, subtitle_y),
-            self.retro.RETRO_COLORS['TERMINAL_AMBER'],
-            self.retro.RETRO_COLORS['FIRE_RED']
-        )
-
-        # Scrolling instruction text
-        self.retro.draw_scrolling_text(
-            self.font_medium,
-            "*** SCAN THE QR CODE TO ENTER THE BATTLE OF DOOM ***",
-            subtitle_y + 60,
-            speed=1
-        )
-
-        # QR Code section with retro border
-        qr_x = 100
-        qr_y = 280
-        qr_size = 280
-
-        # Draw retro-style QR panel
-        qr_panel_rect = (qr_x - 20, qr_y - 40, qr_size + 40, qr_size + 80)
-        self.retro.draw_retro_border(qr_panel_rect)
-
+        # Left side - QR Code area
+        qr_x = margin
+        qr_y = header_height + margin
+        qr_size = 300
+        qr_box_width = qr_size + 80
+        qr_box_height = qr_size + 100
+        
+        qr_box_rect = (qr_x, qr_y, qr_box_width, qr_box_height)
+        self.draw_clean_overlay_box(qr_box_rect, alpha=220)
+        
         # QR label with icon
         qr_icon = self.icons.get('qr')
         if qr_icon:
-            self.screen.blit(qr_icon, (qr_x, qr_y - 35))
-
-        qr_label = self.font_small.render(">> SCAN TO PLAY <<", True, self.retro.RETRO_COLORS['CYBER_GREEN'])
-        self.screen.blit(qr_label, (qr_x + 40, qr_y - 30))
-
+            self.screen.blit(qr_icon, (qr_x + 20, qr_y + 20))
+        
+        qr_label = self.font_small.render("SCAN TO PLAY", True, self.retro.RETRO_COLORS['CYBER_GREEN'])
+        self.screen.blit(qr_label, (qr_x + 60, qr_y + 25))
+        
         # Scale and display QR code
         qr_scaled = pygame.transform.scale(self.qr_image, (qr_size, qr_size))
-        self.screen.blit(qr_scaled, (qr_x, qr_y))
+        qr_display_x = qr_x + (qr_box_width - qr_size) // 2
+        qr_display_y = qr_y + 60
+        self.screen.blit(qr_scaled, (qr_display_x, qr_display_y))
 
-        # High Scores panel with retro styling
-        scores_x = 500
-        scores_y = 200
-        scores_w = 650
+        # Right side - High Scores area
+        scores_x = qr_x + qr_box_width + margin
+        scores_y = header_height + margin
+        scores_w = self.DISPLAY_SIZE[0] - scores_x - margin
         scores_h = 500
-
-        # Draw scores panel with retro border
-        scores_panel_rect = (scores_x, scores_y, scores_w, scores_h)
-        self.retro.draw_retro_border(scores_panel_rect, thickness=5)
-
+        
+        scores_box_rect = (scores_x, scores_y, scores_w, scores_h)
+        self.draw_clean_overlay_box(scores_box_rect, alpha=220)
+        
         # Scores header with icon
         star_icon = self.icons.get('star')
         if star_icon:
             self.screen.blit(star_icon, (scores_x + 20, scores_y + 20))
-
-        scores_header = self.font_large.render("TOP WARRIORS", True, self.retro.get_rainbow_color(offset=50))
+        
+        scores_header = self.font_large.render("TOP WARRIORS", True, self.retro.RETRO_COLORS['TERMINAL_AMBER'])
         self.screen.blit(scores_header, (scores_x + 60, scores_y + 20))
-
-        # Get and display scores with retro styling
+        
+        # Get and display scores
         scores = self.get_top_scores()
         y_offset = scores_y + 80
-
+        
         if scores:
             for i, (name, score, timestamp, level) in enumerate(scores):
-                # Retro rank colors
+                if i >= 10:  # Limit to top 10
+                    break
+                    
+                # Rank colors
                 if i == 0:
                     color = self.retro.RETRO_COLORS['TERMINAL_AMBER']  # Gold
                     rank_icon = self.icons.get('trophy')
@@ -854,74 +794,67 @@ class DoomBoxKiosk:
                     color = self.retro.RETRO_COLORS['FIRE_RED']  # Bronze
                     rank_icon = self.icons.get('gem')
                 else:
-                    color = self.retro.RETRO_COLORS['CYBER_GREEN']
+                    color = self.retro.RETRO_COLORS['WHITE']
                     rank_icon = self.icons.get('heart')
-
+                
                 # Draw rank icon
                 if rank_icon:
-                    self.screen.blit(rank_icon, (scores_x + 20, y_offset + i * 40))
-
-                # Format score line with retro styling
+                    self.screen.blit(rank_icon, (scores_x + 20, y_offset + i * 35))
+                
+                # Format score line
                 position = f"{i+1:2d}."
-                display_name = name[:12] + "..." if len(name) > 12 else name
+                display_name = name[:15] + "..." if len(name) > 15 else name
                 score_text = f"{position} {display_name}: {score:,}"
-
+                
                 score_surface = self.font_small.render(score_text, True, color)
-                self.screen.blit(score_surface, (scores_x + 60, y_offset + i * 40 + 5))
+                self.screen.blit(score_surface, (scores_x + 60, y_offset + i * 35 + 5))
         else:
-            # No scores message with blinking effect
-            self.retro.draw_blinking_text(
-                self.font_medium,
-                "NO SCORES YET - BE THE FIRST!",
-                (scores_x + 50, y_offset + 150),
-                self.retro.RETRO_COLORS['HOT_MAGENTA'],
-                self.retro.RETRO_COLORS['PURPLE_HAZE']
-            )
+            # No scores message
+            no_scores_surface = self.font_medium.render("NO SCORES YET - BE THE FIRST!", True, self.retro.RETRO_COLORS['HOT_MAGENTA'])
+            no_scores_rect = no_scores_surface.get_rect(centerx=scores_x + scores_w//2, y=y_offset + 150)
+            self.screen.blit(no_scores_surface, no_scores_rect)
 
-        # Status bar at bottom with retro styling
-        status_y = self.DISPLAY_SIZE[1] - 100
-        status_rect = (0, status_y, self.DISPLAY_SIZE[0], 100)
-        self.retro.draw_retro_border(status_rect)
-
-        # Controller status with icon
+        # Bottom status bar
+        status_y = self.DISPLAY_SIZE[1] - 120
+        status_rect = (0, status_y, self.DISPLAY_SIZE[0], 120)
+        self.draw_clean_overlay_box(status_rect, alpha=240)
+        
+        # Left side status - Controller
         controller_icon = self.icons.get('controller')
         if controller_icon:
             self.screen.blit(controller_icon, (20, status_y + 20))
-
+        
         controller_color = self.retro.RETRO_COLORS['LIME_SHOCK'] if self.controller_connected else self.retro.RETRO_COLORS['FIRE_RED']
         controller_text = "CONTROLLER: ONLINE" if self.controller_connected else "CONTROLLER: OFFLINE"
         controller_surface = self.font_tiny.render(controller_text, True, controller_color)
         self.screen.blit(controller_surface, (60, status_y + 30))
-
-        # Game status
+        
+        # Center status - Game status
         if self.game_running and self.current_player:
             lightning_icon = self.icons.get('lightning')
             if lightning_icon:
-                self.screen.blit(lightning_icon, (20, status_y + 50))
-
-            game_text = f">>> NOW PLAYING: {self.current_player} <<<"
-            game_surface = self.font_tiny.render(game_text, True, self.retro.get_rainbow_color(offset=30))
-            self.screen.blit(game_surface, (60, status_y + 60))
-
-        # WiFi and URL info
+                self.screen.blit(lightning_icon, (self.DISPLAY_SIZE[0] // 2 - 200, status_y + 20))
+            
+            game_text = f"NOW PLAYING: {self.current_player}"
+            game_surface = self.font_small.render(game_text, True, self.retro.RETRO_COLORS['LIME_SHOCK'])
+            game_rect = game_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=status_y + 25)
+            self.screen.blit(game_surface, game_rect)
+        
+        # Right side status - URL and instructions
         wifi_icon = self.icons.get('wifi')
         if wifi_icon:
             self.screen.blit(wifi_icon, (self.DISPLAY_SIZE[0] - 350, status_y + 20))
-
+        
         url_text = f"FORM URL: {self.form_url}"
         url_surface = self.font_tiny.render(url_text, True, self.retro.RETRO_COLORS['ICE_BLUE'])
         self.screen.blit(url_surface, (self.DISPLAY_SIZE[0] - 320, status_y + 30))
-
-        # Konami code hint with blinking
-        self.retro.draw_blinking_text(
-            self.font_tiny,
-            "KONAMI CODE FOR TEST MODE",
-            (self.DISPLAY_SIZE[0] - 320, status_y + 60),
-            self.retro.RETRO_COLORS['PURPLE_HAZE'],
-            self.retro.RETRO_COLORS['DARK_GRAY']
-        )
-
-        # Update animation frame
+        
+        # Konami code hint
+        konami_text = "KONAMI CODE FOR TEST MODE"
+        konami_surface = self.font_tiny.render(konami_text, True, self.retro.RETRO_COLORS['PURPLE_HAZE'])
+        self.screen.blit(konami_surface, (self.DISPLAY_SIZE[0] - 320, status_y + 60))
+        
+        # Update animation frame (for any remaining animations)
         self.retro.update_frame()
 
     def run(self):
