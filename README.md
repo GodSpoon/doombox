@@ -350,6 +350,13 @@ doombox/
 - **Improved visual hierarchy** with header text standing out against video background
 - **Enhanced authenticity** with classic Doom red color scheme for main title
 
+### 2025-07-06 - Fixed Header Text Shadow Rendering
+- **Issue**: Black box appearing behind "Slaughter with Shmegl" header text instead of proper text shadow
+- **Cause**: `shadow_surf.fill((0, 0, 0))` was filling entire surface with black, creating rectangle instead of text shadow
+- **Solution**: Changed to proper text shadow rendering using font.render() with black color for each text part
+- **Result**: Header now displays clean text with proper drop shadow following letter contours
+- **Visual Impact**: Header text now appears cleanly over video background without black box artifacts
+
 ---
 
 *Built for satan 🖤*

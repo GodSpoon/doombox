@@ -525,11 +525,17 @@ class DoomBoxKiosk:
         
         # Draw text parts with proper black drop shadow
         current_x = start_x + skull_spacing
-        for part in parts:
+        for i, part in enumerate(parts):
+            # Get the original text for shadow rendering
+            if i == 0 and first_char:
+                shadow_text = self.font_doom_left.render(first_char, True, (0, 0, 0))  # Black shadow
+            elif i == len(parts) - 1 and last_char:
+                shadow_text = self.font_doom_right.render(last_char, True, (0, 0, 0))  # Black shadow
+            else:
+                shadow_text = self.font_doom_text.render(middle_text, True, (0, 0, 0))  # Black shadow
+            
             # Draw black drop shadow (larger offset for more dramatic effect)
-            shadow_surf = part.copy()
-            shadow_surf.fill((0, 0, 0))  # Pure black shadow
-            self.screen.blit(shadow_surf, (current_x + 4, y + 4))
+            self.screen.blit(shadow_text, (current_x + 4, y + 4))
             
             # Draw main text
             self.screen.blit(part, (current_x, y))
