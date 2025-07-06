@@ -2,7 +2,14 @@
 """
 shmegl's DoomBox Kiosk Application - Improved Layout
 Optimized for 4:3 displays (1280x960) with clean, appealing design
-Uses only Puffin fonts for consistent visual style
+Uses only Puffin fonts for co        # Setup directories
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.fonts_dir = os.path.join(self.base_dir, 'fonts')
+        self.assets_dir = os.path.join(self.base_dir, 'assets')
+        self.videos_dir = os.path.join(self.base_dir, 'vid')  # Fixed video directory path
+        
+        for directory in [self.fonts_dir, self.assets_dir, self.videos_dir]:
+            os.makedirs(directory, exist_ok=True) visual style
 """
 
 import pygame
@@ -46,28 +53,28 @@ class CleanUIRenderer:
         self.display_size = display_size
         self.frame_count = 0
 
-        # Clean, modern color palette with retro accents
+        # Dark purple/light purple/off white color scheme
         self.COLORS = {
             # Primary colors
-            'DOOM_RED': (204, 36, 36),           # Main accent color
-            'DEEP_BLACK': (20, 20, 20),          # Background
-            'CHARCOAL': (40, 40, 40),            # Secondary background
-            'SMOKE_GRAY': (60, 60, 60),          # Tertiary background
+            'OFF_BLACK': (25, 20, 35),           # Deep dark background
+            'DARK_PURPLE': (45, 35, 65),         # Primary dark purple
+            'MEDIUM_PURPLE': (75, 60, 110),      # Medium purple
+            'LIGHT_PURPLE': (140, 120, 180),     # Light purple accent
             
             # Text colors
-            'BRIGHT_WHITE': (255, 255, 255),     # Primary text
-            'LIGHT_GRAY': (200, 200, 200),       # Secondary text
-            'MEDIUM_GRAY': (160, 160, 160),      # Tertiary text
+            'OFF_WHITE': (250, 248, 255),        # Primary text
+            'LIGHT_GRAY': (200, 195, 210),       # Secondary text
+            'MEDIUM_GRAY': (160, 150, 170),      # Tertiary text
             
             # Accent colors
-            'ELECTRIC_BLUE': (0, 150, 255),      # Links/interactive
-            'SUCCESS_GREEN': (46, 204, 113),     # Success states
-            'WARNING_AMBER': (255, 193, 7),      # Warnings
-            'GOLD': (255, 215, 0),               # Highlights
+            'PURPLE_BLUE': (120, 100, 200),      # Links/interactive
+            'SUCCESS_PURPLE': (160, 120, 200),   # Success states
+            'WARNING_PURPLE': (200, 150, 180),   # Warnings
+            'GOLD_PURPLE': (220, 180, 200),      # Highlights
             
             # Subtle effects
-            'OVERLAY_DARK': (0, 0, 0),           # Overlays
-            'BORDER_LIGHT': (80, 80, 80),        # Borders
+            'OVERLAY_DARK': (15, 10, 25),        # Overlays
+            'BORDER_LIGHT': (100, 85, 130),      # Borders
         }
 
         # Layout constants for 4:3 (1280x960) optimization
@@ -184,40 +191,39 @@ class DoomBoxKiosk:
             os.makedirs(directory, exist_ok=True)
 
     def setup_fonts(self):
-        """Setup Puffin fonts with optimized sizes for 4:3 layout"""
+        """Setup Puffin fonts with Liquid for headlines and Regular for body text"""
         try:
-            # Primary font: Puffin Arcade Regular (replacing Minecraft)
+            # Puffin font paths
             puffin_regular_path = os.path.join(self.fonts_dir, "Puffin Arcade Regular.ttf")
             puffin_liquid_path = os.path.join(self.fonts_dir, "Puffin Arcade Liquid.ttf")
             
-            # Check if actual font files exist
+            # Check if Puffin Liquid exists and use it for headlines
             if os.path.exists(puffin_liquid_path) and os.path.getsize(puffin_liquid_path) > 1000:
-                # Use Puffin Liquid for headlines
                 self.font_title = pygame.font.Font(puffin_liquid_path, 72)
                 self.font_subtitle = pygame.font.Font(puffin_liquid_path, 48)
-            elif os.path.exists(puffin_regular_path) and os.path.getsize(puffin_regular_path) > 1000:
-                # Use Puffin Regular for everything
-                self.font_title = pygame.font.Font(puffin_regular_path, 72)
-                self.font_subtitle = pygame.font.Font(puffin_regular_path, 48)
+                self.font_large = pygame.font.Font(puffin_liquid_path, 36)
+                logger.info("Using Puffin Liquid for headlines")
             else:
-                # Fallback to system font
+                # Fallback to system font for headlines
                 self.font_title = pygame.font.SysFont('arial', 72, bold=True)
                 self.font_subtitle = pygame.font.SysFont('arial', 48, bold=True)
+                self.font_large = pygame.font.SysFont('arial', 36, bold=True)
+                logger.warning("Puffin Liquid not found, using system font for headlines")
             
-            # Use Puffin Regular for all other text (consistent design)
+            # Use Puffin Regular for body text
             if os.path.exists(puffin_regular_path) and os.path.getsize(puffin_regular_path) > 1000:
-                self.font_large = pygame.font.Font(puffin_regular_path, 36)
                 self.font_medium = pygame.font.Font(puffin_regular_path, 28)
                 self.font_small = pygame.font.Font(puffin_regular_path, 22)
                 self.font_tiny = pygame.font.Font(puffin_regular_path, 18)
+                logger.info("Using Puffin Regular for body text")
             else:
-                # Fallback fonts
-                self.font_large = pygame.font.SysFont('arial', 36, bold=True)
+                # Fallback fonts for body text
                 self.font_medium = pygame.font.SysFont('arial', 28)
                 self.font_small = pygame.font.SysFont('arial', 22)
                 self.font_tiny = pygame.font.SysFont('arial', 18)
+                logger.warning("Puffin Regular not found, using system font for body text")
             
-            logger.info("Fonts initialized successfully")
+            logger.info("Font setup complete")
         except Exception as e:
             logger.error(f"Font setup error: {e}")
             # Ultimate fallback
@@ -282,36 +288,79 @@ class DoomBoxKiosk:
             logger.error(f"Database setup error: {e}")
 
     def load_background_video(self):
-        """Load background video if available"""
+        """Load and setup background video cycling through all available videos"""
         try:
-            video_files = []
+            self.video_files = []
             if os.path.exists(self.videos_dir):
-                video_files = [f for f in os.listdir(self.videos_dir) if f.endswith(('.mp4', '.avi', '.mov'))]
+                # Get all video files and sort them
+                all_files = [f for f in os.listdir(self.videos_dir) if f.endswith(('.mp4', '.avi', '.mov'))]
+                self.video_files = sorted(all_files)
             
-            if video_files:
-                video_path = os.path.join(self.videos_dir, video_files[0])
-                self.video_cap = cv2.VideoCapture(video_path)
-                self.video_frame_count = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if self.video_files:
+                self.current_video_index = 0
+                self.video_cap = None
+                self.video_frame_count = 0
                 self.current_video_frame = 0
-                logger.info(f"Loaded background video: {video_path}")
+                self.video_switch_timer = 0
+                self.video_switch_interval = 300  # Switch video every 10 seconds at 30fps
+                
+                # Load first video
+                self.load_next_video()
+                logger.info(f"Loaded {len(self.video_files)} background videos")
             else:
                 self.video_cap = None
-                logger.info("No background video found")
+                self.video_files = []
+                logger.info("No background videos found")
         except Exception as e:
             logger.error(f"Video setup error: {e}")
             self.video_cap = None
+            self.video_files = []
+
+    def load_next_video(self):
+        """Load the next video in the sequence"""
+        try:
+            if not self.video_files:
+                return
+                
+            if self.video_cap:
+                self.video_cap.release()
+            
+            video_path = os.path.join(self.videos_dir, self.video_files[self.current_video_index])
+            self.video_cap = cv2.VideoCapture(video_path)
+            self.video_frame_count = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.current_video_frame = 0
+            
+            logger.info(f"Loaded video: {self.video_files[self.current_video_index]}")
+            
+            # Move to next video for next time
+            self.current_video_index = (self.current_video_index + 1) % len(self.video_files)
+            
+        except Exception as e:
+            logger.error(f"Error loading video: {e}")
+            self.video_cap = None
 
     def get_video_frame(self):
-        """Get current video frame for background"""
-        if not self.video_cap:
+        """Get current video frame with cycling and better visibility"""
+        if not self.video_cap or not self.video_files:
             return None
         
         try:
+            # Check if we should switch to next video
+            self.video_switch_timer += 1
+            if self.video_switch_timer >= self.video_switch_interval:
+                self.video_switch_timer = 0
+                self.load_next_video()
+                if not self.video_cap:
+                    return None
+            
             ret, frame = self.video_cap.read()
             if not ret:
-                # Loop video
-                self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                ret, frame = self.video_cap.read()
+                # If video ended, load next video
+                self.load_next_video()
+                if self.video_cap:
+                    ret, frame = self.video_cap.read()
+                else:
+                    return None
             
             if ret:
                 # Convert to pygame surface
@@ -320,6 +369,8 @@ class DoomBoxKiosk:
                 return pygame.surfarray.make_surface(frame.swapaxes(0, 1))
         except Exception as e:
             logger.error(f"Video frame error: {e}")
+            # Try to load next video on error
+            self.load_next_video()
         
         return None
 
@@ -343,42 +394,44 @@ class DoomBoxKiosk:
             return [("PLAYER", 0) for _ in range(3)]  # Dummy data
 
     def draw_main_screen(self):
-        """Draw the main kiosk screen with improved 4:3 layout"""
+        """Draw the main kiosk screen with purple color scheme and visible video background"""
         
-        # Background
+        # Background - Make video more visible
         video_frame = self.get_video_frame()
         if video_frame:
-            # Darken video for better text contrast
-            darkened = pygame.Surface(self.DISPLAY_SIZE)
-            darkened.fill((0, 0, 0))
-            darkened.set_alpha(120)
-            
+            # Apply subtle purple tint to video instead of heavy darkening
             self.screen.blit(video_frame, (0, 0))
-            self.screen.blit(darkened, (0, 0))
+            
+            # Light purple overlay for better contrast but still visible video
+            video_overlay = pygame.Surface(self.DISPLAY_SIZE)
+            video_overlay.fill(self.ui.COLORS['DARK_PURPLE'])
+            video_overlay.set_alpha(60)  # Much lighter overlay
+            self.screen.blit(video_overlay, (0, 0))
         else:
-            # Gradient background
+            # Gradient background with purple theme
             self.ui.draw_gradient_background(
                 (0, 0, self.DISPLAY_SIZE[0], self.DISPLAY_SIZE[1]),
-                self.ui.COLORS['DEEP_BLACK'],
-                self.ui.COLORS['CHARCOAL']
+                self.ui.COLORS['OFF_BLACK'],
+                self.ui.COLORS['DARK_PURPLE']
             )
 
         # === HEADER SECTION ===
         header_rect = (0, 0, self.DISPLAY_SIZE[0], self.ui.LAYOUT['HEADER_HEIGHT'])
-        self.ui.draw_rounded_rect(header_rect, 0, self.ui.COLORS['OVERLAY_DARK'])
-        overlay = pygame.Surface((header_rect[2], header_rect[3]))
-        overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        overlay.set_alpha(180)
-        self.screen.blit(overlay, (header_rect[0], header_rect[1]))
+        
+        # Header background with transparency
+        header_overlay = pygame.Surface((header_rect[2], header_rect[3]))
+        header_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
+        header_overlay.set_alpha(160)  # Lighter for video visibility
+        self.screen.blit(header_overlay, (header_rect[0], header_rect[1]))
 
         # Main title
         title_y = 25
         self.ui.draw_text_with_shadow(
             "shmegl's DoomBox",
             self.font_title,
-            self.ui.COLORS['DOOM_RED'],
+            self.ui.COLORS['LIGHT_PURPLE'],
             (self.DISPLAY_SIZE[0]//2 - self.font_title.size("shmegl's DoomBox")[0]//2, title_y),
-            self.ui.COLORS['DEEP_BLACK'],
+            self.ui.COLORS['OFF_BLACK'],
             (3, 3)
         )
 
@@ -387,15 +440,15 @@ class DoomBoxKiosk:
         self.ui.draw_text_with_shadow(
             "Highest score gets a free tattoo!",
             self.font_subtitle,
-            self.ui.COLORS['WARNING_AMBER'],
+            self.ui.COLORS['WARNING_PURPLE'],
             (self.DISPLAY_SIZE[0]//2 - self.font_subtitle.size("Highest score gets a free tattoo!")[0]//2, subtitle_y),
-            self.ui.COLORS['DEEP_BLACK'],
+            self.ui.COLORS['OFF_BLACK'],
             (2, 2)
         )
 
-        # Instruction
+        # Instruction with pulse effect
         instruction_y = subtitle_y + 55
-        instruction_color = self.ui.COLORS['SUCCESS_GREEN']
+        instruction_color = self.ui.COLORS['SUCCESS_PURPLE']
         # Add subtle pulse effect
         pulse = abs(math.sin(self.ui.pulse_timer)) * 0.3 + 0.7
         instruction_color = tuple(int(c * pulse) for c in instruction_color)
@@ -405,7 +458,7 @@ class DoomBoxKiosk:
             self.font_large,
             instruction_color,
             (self.DISPLAY_SIZE[0]//2 - self.font_large.size("SCAN THE QR CODE TO ENTER THE BATTLE")[0]//2, instruction_y),
-            self.ui.COLORS['DEEP_BLACK'],
+            self.ui.COLORS['OFF_BLACK'],
             (1, 1)
         )
 
@@ -429,7 +482,7 @@ class DoomBoxKiosk:
         # QR code overlay for better visibility
         qr_overlay = pygame.Surface((qr_section_rect[2], qr_section_rect[3]))
         qr_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        qr_overlay.set_alpha(200)
+        qr_overlay.set_alpha(180)  # Lighter for video visibility
         self.screen.blit(qr_overlay, (qr_section_rect[0], qr_section_rect[1]))
 
         # QR section title
@@ -437,23 +490,29 @@ class DoomBoxKiosk:
         self.ui.draw_text_with_shadow(
             "SCAN TO PLAY",
             self.font_large,
-            self.ui.COLORS['ELECTRIC_BLUE'],
+            self.ui.COLORS['PURPLE_BLUE'],
             (qr_section_x + qr_section_width//2 - self.font_large.size("SCAN TO PLAY")[0]//2, qr_title_y),
-            self.ui.COLORS['DEEP_BLACK']
+            self.ui.COLORS['OFF_BLACK']
         )
 
-        # QR Code
-        qr_y = qr_title_y + 50
+        # QR Code - Properly centered in the section
+        qr_y = qr_title_y + 70
         qr_x = qr_section_x + (qr_section_width - self.ui.LAYOUT['QR_SIZE']) // 2
         
-        # QR background
-        qr_bg_rect = (qr_x - 10, qr_y - 10, self.ui.LAYOUT['QR_SIZE'] + 20, self.ui.LAYOUT['QR_SIZE'] + 20)
-        self.ui.draw_rounded_rect(qr_bg_rect, 8, self.ui.COLORS['BRIGHT_WHITE'])
+        # QR background with purple tint
+        qr_bg_rect = (qr_x - 15, qr_y - 15, self.ui.LAYOUT['QR_SIZE'] + 30, self.ui.LAYOUT['QR_SIZE'] + 30)
+        self.ui.draw_rounded_rect(qr_bg_rect, 12, self.ui.COLORS['OFF_WHITE'])
         
-        self.screen.blit(self.qr_surface, (qr_x, qr_y))
+        # Add subtle purple border
+        self.ui.draw_rounded_rect(qr_bg_rect, 12, None, self.ui.COLORS['LIGHT_PURPLE'], 3)
+        
+        # Center the QR code perfectly
+        qr_centered_x = qr_section_x + (qr_section_width - self.ui.LAYOUT['QR_SIZE']) // 2
+        qr_centered_y = qr_y
+        self.screen.blit(self.qr_surface, (qr_centered_x, qr_centered_y))
 
-        # URL below QR
-        url_y = qr_y + self.ui.LAYOUT['QR_SIZE'] + 20
+        # URL below QR - centered
+        url_y = qr_centered_y + self.ui.LAYOUT['QR_SIZE'] + 25
         url_lines = [
             "shmeglsdoombox",
             ".spoon.rip"
@@ -465,7 +524,7 @@ class DoomBoxKiosk:
                 self.font_small,
                 self.ui.COLORS['LIGHT_GRAY'],
                 (qr_section_x + qr_section_width//2 - self.font_small.size(line)[0]//2, line_y),
-                self.ui.COLORS['DEEP_BLACK']
+                self.ui.COLORS['OFF_BLACK']
             )
 
         # Right side - Leaderboard section
@@ -484,7 +543,7 @@ class DoomBoxKiosk:
         # Scores overlay
         scores_overlay = pygame.Surface((scores_section_rect[2], scores_section_rect[3]))
         scores_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        scores_overlay.set_alpha(200)
+        scores_overlay.set_alpha(180)  # Lighter for video visibility
         self.screen.blit(scores_overlay, (scores_section_rect[0], scores_section_rect[1]))
 
         # Leaderboard title
@@ -492,9 +551,9 @@ class DoomBoxKiosk:
         self.ui.draw_text_with_shadow(
             "🏆 TOP SCORES 🏆",
             self.font_large,
-            self.ui.COLORS['GOLD'],
+            self.ui.COLORS['GOLD_PURPLE'],
             (scores_section_x + scores_section_width//2 - self.font_large.size("🏆 TOP SCORES 🏆")[0]//2, scores_title_y),
-            self.ui.COLORS['DEEP_BLACK']
+            self.ui.COLORS['OFF_BLACK']
         )
 
         # Score entries
@@ -505,19 +564,19 @@ class DoomBoxKiosk:
         for i, (player_name, score) in enumerate(scores):
             entry_y = scores_start_y + i * line_height
             
-            # Rank colors
+            # Rank colors with purple theme
             if i == 0:
-                rank_color = self.ui.COLORS['GOLD']
-                name_color = self.ui.COLORS['GOLD']
+                rank_color = self.ui.COLORS['GOLD_PURPLE']
+                name_color = self.ui.COLORS['GOLD_PURPLE']
             elif i == 1:
-                rank_color = self.ui.COLORS['LIGHT_GRAY']
-                name_color = self.ui.COLORS['LIGHT_GRAY']
+                rank_color = self.ui.COLORS['LIGHT_PURPLE']
+                name_color = self.ui.COLORS['LIGHT_PURPLE']
             elif i == 2:
-                rank_color = self.ui.COLORS['WARNING_AMBER']
-                name_color = self.ui.COLORS['WARNING_AMBER']
+                rank_color = self.ui.COLORS['WARNING_PURPLE']
+                name_color = self.ui.COLORS['WARNING_PURPLE']
             else:
                 rank_color = self.ui.COLORS['MEDIUM_GRAY']
-                name_color = self.ui.COLORS['BRIGHT_WHITE']
+                name_color = self.ui.COLORS['OFF_WHITE']
 
             # Rank number
             rank_text = f"{i+1}."
@@ -526,7 +585,7 @@ class DoomBoxKiosk:
                 self.font_medium,
                 rank_color,
                 (scores_section_x + 30, entry_y),
-                self.ui.COLORS['DEEP_BLACK']
+                self.ui.COLORS['OFF_BLACK']
             )
 
             # Player name (truncate if too long)
@@ -536,7 +595,7 @@ class DoomBoxKiosk:
                 self.font_medium,
                 name_color,
                 (scores_section_x + 80, entry_y),
-                self.ui.COLORS['DEEP_BLACK']
+                self.ui.COLORS['OFF_BLACK']
             )
 
             # Score
@@ -545,9 +604,9 @@ class DoomBoxKiosk:
             self.ui.draw_text_with_shadow(
                 score_text,
                 self.font_medium,
-                self.ui.COLORS['ELECTRIC_BLUE'],
+                self.ui.COLORS['PURPLE_BLUE'],
                 (scores_section_x + scores_section_width - score_width - 30, entry_y),
-                self.ui.COLORS['DEEP_BLACK']
+                self.ui.COLORS['OFF_BLACK']
             )
 
         # === FOOTER INFO ===
@@ -561,7 +620,7 @@ class DoomBoxKiosk:
                 self.font_small,
                 self.ui.COLORS['MEDIUM_GRAY'],
                 (self.DISPLAY_SIZE[0]//2 - self.font_small.size(konami_text)[0]//2, footer_y),
-                self.ui.COLORS['DEEP_BLACK']
+                self.ui.COLORS['OFF_BLACK']
             )
 
         # Update animations
@@ -612,6 +671,7 @@ class DoomBoxKiosk:
         
         if hasattr(self, 'video_cap') and self.video_cap:
             self.video_cap.release()
+            logger.info("Video capture released")
         
         pygame.quit()
         logger.info("Cleanup complete")
