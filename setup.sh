@@ -27,16 +27,12 @@ DOOMBOX_DIR="$SCRIPT_DIR/app"
 DOOM_DIR="$DOOMBOX_DIR/doom"
 LOGS_DIR="$DOOMBOX_DIR/logs"
 FONTS_DIR="$DOOMBOX_DIR/fonts"
-VID_DIR="$DOOMBOX_DIR/vid"
-IMG_DIR="$DOOMBOX_DIR/img"
 
 echo -e "${YELLOW}Creating directories...${NC}"
 mkdir -p "$DOOMBOX_DIR"
 mkdir -p "$DOOM_DIR"
 mkdir -p "$LOGS_DIR"
 mkdir -p "$FONTS_DIR"
-mkdir -p "$VID_DIR"
-mkdir -p "$IMG_DIR"
 
 echo -e "${YELLOW}System dependencies required:${NC}"
 echo -e "${BLUE}Please ensure the following packages are installed:${NC}"
@@ -168,26 +164,54 @@ echo -e "${GREEN}lzdoom compatibility wrapper created!${NC}"
 
 echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
 cd "$DOOMBOX_DIR"
-python3 -m venv venv
+
+# Create virtual environment only if it doesn't exist
+if [ ! -d "venv" ]; then
+    echo -e "${YELLOW}Creating new virtual environment...${NC}"
+    python3 -m venv venv
+else
+    echo -e "${GREEN}Virtual environment already exists${NC}"
+fi
+
 source venv/bin/activate
 
-echo -e "${YELLOW}Installing Python dependencies...${NC}"
-pip install --upgrade pip
+# Check if packages are already installed
+PACKAGES_INSTALLED=false
+if python3 -c "import pygame, cv2, numpy, paho.mqtt, requests" 2>/dev/null; then
+    PACKAGES_INSTALLED=true
+    echo -e "${GREEN}Python packages already installed${NC}"
+fi
 
-# Force reinstall of NumPy and OpenCV to ensure compatibility
-echo -e "${YELLOW}Ensuring NumPy 1.x compatibility...${NC}"
-pip uninstall -y numpy opencv-python 2>/dev/null || true
-pip install "numpy<2.0.0"
+if [ "$PACKAGES_INSTALLED" = false ]; then
+    echo -e "${YELLOW}Installing Python dependencies...${NC}"
+    pip install --upgrade pip
 
-# Check if requirements.txt exists in the repo
-if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
-    echo -e "${YELLOW}Installing from requirements.txt...${NC}"
-    pip install -r "$SCRIPT_DIR/requirements.txt"
-else
-    echo -e "${YELLOW}Installing default Python packages...${NC}"
-    # Install NumPy 1.x first to avoid compatibility issues with OpenCV
+    # Force reinstall of NumPy and OpenCV to ensure compatibility
+    echo -e "${YELLOW}Ensuring NumPy 1.x compatibility...${NC}"
+    pip uninstall -y numpy opencv-python 2>/dev/null || true
     pip install "numpy<2.0.0"
-    pip install pygame opencv-python paho-mqtt requests
+
+    # Check if requirements.txt exists in the repo
+    if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
+        echo -e "${YELLOW}Installing from requirements.txt...${NC}"
+        pip install -r "$SCRIPT_DIR/requirements.txt"
+    else
+        echo -e "${YELLOW}Installing default Python packages...${NC}"
+        # Install NumPy 1.x first to avoid compatibility issues with OpenCV
+        pip install "numpy<2.0.0"
+        pip install pygame opencv-python paho-mqtt requests
+    fi
+else
+    echo -e "${YELLOW}Checking NumPy compatibility...${NC}"
+    NUMPY_VERSION=$(python3 -c "import numpy; print(numpy.__version__)" 2>/dev/null || echo "unknown")
+    if [[ "$NUMPY_VERSION" == "2."* ]]; then
+        echo -e "${YELLOW}NumPy 2.x detected, downgrading for OpenCV compatibility...${NC}"
+        pip uninstall -y numpy opencv-python 2>/dev/null || true
+        pip install "numpy<2.0.0"
+        pip install opencv-python==4.8.1.78
+    else
+        echo -e "${GREEN}NumPy version $NUMPY_VERSION is compatible${NC}"
+    fi
 fi
 
 echo -e "${YELLOW}Downloading DOOM.WAD...${NC}"
@@ -233,24 +257,8 @@ else
     echo -e "${YELLOW}⚠️  No fonts directory found in repo${NC}"
 fi
 
-# Copy videos
-if [ -d "$SCRIPT_DIR/vid" ]; then
-    echo -e "${YELLOW}Copying demo videos...${NC}"
-    cp -r "$SCRIPT_DIR/vid"/* "$VID_DIR/"
-    echo -e "${GREEN}✅ Demo videos copied:${NC}"
-    ls -la "$VID_DIR/" | grep -E "\.(mp4|avi|mov|mkv)$" | wc -l | xargs echo "   Video files:"
-else
-    echo -e "${YELLOW}⚠️  No vid directory found in repo${NC}"
-fi
-
-# Copy images
-if [ -d "$SCRIPT_DIR/img" ]; then
-    echo -e "${YELLOW}Copying image assets...${NC}"
-    cp -r "$SCRIPT_DIR/img"/* "$IMG_DIR/"
-    echo -e "${GREEN}✅ Image assets copied${NC}"
-else
-    echo -e "${YELLOW}⚠️  No img directory found in repo${NC}"
-fi
+# Note: Videos and images are used directly from git repo - no copying needed
+echo -e "${GREEN}✅ Using media files directly from git repository${NC}"
 
 echo -e "${GREEN}Repository files copied successfully!${NC}" echo -e "${YELLOW}Creating startup scripts...${NC}"
 cat >"$DOOMBOX_DIR/start.sh" <<'EOF'
@@ -437,12 +445,12 @@ chmod +x "$DOOMBOX_DIR"/*.sh
 # Asset summary
 echo -e "${YELLOW}Asset Summary:${NC}"
 FONT_COUNT=$(find "$FONTS_DIR" -name "*.ttf" -o -name "*.otf" 2>/dev/null | wc -l)
-VIDEO_COUNT=$(find "$VID_DIR" -name "*.mp4" -o -name "*.avi" -o -name "*.mov" -o -name "*.mkv" 2>/dev/null | wc -l)
-IMG_COUNT=$(find "$IMG_DIR" -name "*.jpg" -o -name "*.png" -o -name "*.gif" 2>/dev/null | wc -l)
+VIDEO_COUNT=$(find "$SCRIPT_DIR/vid" -name "*.mp4" -o -name "*.avi" -o -name "*.mov" -o -name "*.mkv" 2>/dev/null | wc -l)
+IMG_COUNT=$(find "$SCRIPT_DIR/img" -name "*.jpg" -o -name "*.png" -o -name "*.gif" 2>/dev/null | wc -l)
 
-echo -e "Fonts: $FONT_COUNT files"
-echo -e "Videos: $VIDEO_COUNT files"
-echo -e "Images: $IMG_COUNT files"
+echo -e "Fonts: $FONT_COUNT files (copied to app)"
+echo -e "Videos: $VIDEO_COUNT files (using from git repo)"
+echo -e "Images: $IMG_COUNT files (using from git repo)"
 
 echo -e "${GREEN}=========================================="
 echo -e "  DoomBox Setup Complete!"
@@ -450,9 +458,9 @@ echo -e "=========================================="
 echo -e "Application built in: ${YELLOW}$DOOMBOX_DIR${NC}"
 echo -e ""
 echo -e "Assets loaded:"
-echo -e "• Video backgrounds ($VIDEO_COUNT videos)"
-echo -e "• Custom fonts ($FONT_COUNT fonts)"
-echo -e "• Image assets ($IMG_COUNT images)"
+echo -e "• Video backgrounds ($VIDEO_COUNT videos - using from git repo)"
+echo -e "• Custom fonts ($FONT_COUNT fonts - copied to app)"
+echo -e "• Image assets ($IMG_COUNT images - using from git repo)"
 echo -e ""
 echo -e "To run DoomBox:"
 echo -e "1. ${YELLOW}Test the kiosk:${NC}"

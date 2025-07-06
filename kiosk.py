@@ -31,11 +31,16 @@ except ImportError:
     print("Warning: MQTT not available")
 
 # Set up logging
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+logs_dir = os.path.join(script_dir, 'logs')
+os.makedirs(logs_dir, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/opt/doombox/logs/kiosk.log'),
+        logging.FileHandler(os.path.join(logs_dir, 'kiosk.log')),
         logging.StreamHandler()
     ]
 )
@@ -198,18 +203,20 @@ class DoomBoxKiosk:
         # Initialize retro renderer
         self.retro = RetroKioskRenderer(self.screen, self.DISPLAY_SIZE)
 
-        # Paths
-        self.base_dir = "/opt/doombox"
-        self.doom_dir = f"{self.base_dir}/doom"
-        self.db_path = f"{self.base_dir}/scores.db"
-        self.logs_dir = f"{self.base_dir}/logs"
-        self.trigger_file = f"{self.base_dir}/new_player.json"
-        self.fonts_dir = f"{self.base_dir}/fonts"
-        self.icons_dir = f"{self.base_dir}/icons"
-        self.vid_dir = f"{self.base_dir}/vid"
+        # Paths - use relative paths from script location
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.repo_dir = os.path.dirname(self.base_dir)  # Parent directory (git repo)
+        self.doom_dir = os.path.join(self.base_dir, "doom")
+        self.db_path = os.path.join(self.base_dir, "scores.db")
+        self.logs_dir = os.path.join(self.base_dir, "logs")
+        self.trigger_file = os.path.join(self.base_dir, "new_player.json")
+        self.fonts_dir = os.path.join(self.repo_dir, "fonts")  # Use git repo fonts
+        self.icons_dir = os.path.join(self.base_dir, "icons")
+        self.vid_dir = os.path.join(self.repo_dir, "vid")  # Use git repo videos
+        self.img_dir = os.path.join(self.repo_dir, "img")  # Use git repo images
 
-        # Ensure directories exist
-        for dir_path in [self.logs_dir, self.fonts_dir, self.icons_dir, self.vid_dir]:
+        # Ensure directories exist (only create local app directories)
+        for dir_path in [self.logs_dir, self.icons_dir]:
             os.makedirs(dir_path, exist_ok=True)
 
         # Download and setup retro assets
@@ -599,10 +606,11 @@ class DoomBoxKiosk:
             self.current_player = player_name
             self.game_running = True
 
-            # Command to start DOOM with player name
+            # Command to start DOOM with player name using our wrapper
+            lzdoom_path = os.path.join(self.base_dir, "lzdoom")
             doom_cmd = [
-                "/usr/local/bin/lzdoom",
-                "-iwad", f"{self.doom_dir}/DOOM.WAD",
+                lzdoom_path,
+                "-iwad", os.path.join(self.doom_dir, "DOOM.WAD"),
                 "-skill", "3",
                 "+name", player_name,
                 "-fullscreen"
