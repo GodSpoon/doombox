@@ -274,4 +274,43 @@ doombox/
   - Added missing `setup_database()` method for score tracking
   - Simplified DietPi custom script to just call `start-kiosk.sh`
 
+## 🚀 Deployment Log
+
+### 2025-07-06 - Initial Kiosk Deployment SUCCESS ✅
+
+**System**: Radxa Zero (ARM64) running DietPi/Debian + minimal X server  
+**Target**: Physical kiosk deployment with minimal X server (no full desktop)
+
+#### Deployment Steps Completed:
+1. **Fixed DietPi detection** - Corrected hardware model file path
+2. **Resolved dependencies** - Added `/usr/games` to PATH for doom executables
+3. **Created minimal X server setup** - `start-x-kiosk.sh` for physical display
+4. **Updated systemd service** - Proper service configuration with X server startup
+5. **SDL configuration** - Changed from fbcon to x11 for proper display support
+
+#### Final System Configuration:
+- **X Server**: Minimal X server on physical display (:0) at 1280x960
+- **Kiosk Service**: Running as systemd service with auto-restart
+- **Dependencies**: All satisfied (dsda-doom, unclutter, pygame, etc.)
+- **Database**: SQLite scores database initialized
+- **QR Code**: Generated and ready for scanning
+- **Controller**: Bluetooth support enabled for DualShock 4
+
+#### Service Status:
+```bash
+● doombox-kiosk.service - DoomBox Kiosk Application
+     Loaded: loaded (/etc/systemd/system/doombox-kiosk.service; enabled)
+     Active: active (running)
+```
+
+#### Key Log Entries:
+```
+2025-07-06 13:37:09 - INFO - DoomBox Kiosk initialized successfully!
+2025-07-06 13:37:09 - INFO - Starting DoomBox kiosk main loop
+```
+
+**Result**: ✅ **Kiosk is fully operational and ready for players!**
+
+---
+
 *Built for satan 🖤*
