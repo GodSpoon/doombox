@@ -23,6 +23,10 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Get the directory where this script is located (should be repo root)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+echo -e "${YELLOW}Running from: $SCRIPT_DIR${NC}"
+
 # Define paths
 DOOMBOX_DIR="/opt/doombox"
 DOOM_DIR="$DOOMBOX_DIR/doom"
@@ -49,6 +53,7 @@ apt install -y \
     joystick \
     jstest-gtk \
     feh \
+    mosquitto \
     mosquitto-clients \
     sqlite3 \
     dsda-doom \
@@ -56,7 +61,11 @@ apt install -y \
     python3 \
     python3-pip \
     python3-venv \
-    build-essential
+    build-essential \
+    xorg \
+    xinit \
+    xfce4 \
+    xfce4-goodies
 
 echo -e "${YELLOW}Setting up DOOM engine (dsda-doom)...${NC}"
 # Check for dsda-doom installation
@@ -192,27 +201,104 @@ else
     echo -e "${GREEN}DOOM.WAD already exists${NC}"
 fi
 
-echo -e "${YELLOW}Cloning main kiosk application from repository...${NC}"
+echo -e "${YELLOW}Copying application files from repository...${NC}"
 cd "$DOOMBOX_DIR"
-# Note: Replace with actual repository URL when available
-# git clone https://github.com/your-username/doombox-kiosk.git .
-# For now, we'll create a placeholder
-echo "# Main kiosk application will be cloned from repository" > kiosk.py
-echo "# Repository URL: https://github.com/your-username/doombox-kiosk" >> kiosk.py
+
+# Check if we're running from within the repository
+if [ -f "$SCRIPT_DIR/kiosk.py" ]; then
+    echo "Found kiosk.py in repository, copying files..."
+    
+    # Copy main application files
+    cp "$SCRIPT_DIR/kiosk.py" ./
+    [ -f "$SCRIPT_DIR/config.py" ] && cp "$SCRIPT_DIR/config.py" ./
+    [ -f "$SCRIPT_DIR/webhook.py" ] && cp "$SCRIPT_DIR/webhook.py" ./
+    
+    # Copy web form files if they exist
+    if [ -d "$SCRIPT_DIR/form" ]; then
+        cp -r "$SCRIPT_DIR/form" ./
+    elif [ -f "$SCRIPT_DIR/index.html" ]; then
+        mkdir -p form
+        cp "$SCRIPT_DIR/index.html" ./form/
+        [ -f "$SCRIPT_DIR/CNAME" ] && cp "$SCRIPT_DIR/CNAME" ./form/
+    fi
+    
+    # Copy any additional assets
+    [ -f "$SCRIPT_DIR/lmao.gif" ] && cp "$SCRIPT_DIR/lmao.gif" ./
+    [ -f "$SCRIPT_DIR/formsubmit.jpg" ] && cp "$SCRIPT_DIR/formsubmit.jpg" ./
+    
+    echo -e "${GREEN}Repository files copied successfully!${NC}"
+else
+    echo -e "${YELLOW}Repository files not found. Please ensure you're running setup.sh from the cloned repository directory.${NC}"
+    echo -e "${YELLOW}Creating minimal kiosk.py...${NC}"
+    
+    # Create a minimal working kiosk if repo files aren't found
+    cat > kiosk.py << 'EOF'
+#!/usr/bin/env python3
+"""
+Minimal DoomBox Kiosk - Please replace with full version from repository
+"""
+import pygame
+import sys
+
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((1280, 960), pygame.FULLSCREEN)
+    pygame.display.set_caption("DoomBox - Missing Files")
+    
+    font = pygame.font.Font(None, 48)
+    clock = pygame.time.Clock()
+    
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                pygame.quit()
+                sys.exit()
+        
+        screen.fill((0, 0, 0))
+        text = font.render("DoomBox Setup Incomplete", True, (255, 0, 0))
+        text2 = font.render("Please copy files from repository", True, (255, 255, 255))
+        text3 = font.render("Press ESC to exit", True, (128, 128, 128))
+        
+        screen.blit(text, (320, 400))
+        screen.blit(text2, (200, 450))
+        screen.blit(text3, (500, 500))
+        
+        pygame.display.flip()
+        clock.tick(30)
+
+if __name__ == "__main__":
+    main()
+EOF
+    chmod +x kiosk.py
+fi
+
+echo -e "${YELLOW}Setting up Mosquitto MQTT broker...${NC}"
+systemctl enable mosquitto
+systemctl start mosquitto
+
+# Configure mosquitto for local access
+cat > /etc/mosquitto/conf.d/doombox.conf << 'EOF'
+# DoomBox MQTT Configuration
+listener 1883 localhost
+allow_anonymous true
+EOF
+
+systemctl restart mosquitto
 
 echo -e "${YELLOW}Creating systemd service...${NC}"
 cat > /etc/systemd/system/doombox.service << 'EOF'
 [Unit]
 Description=shmegl's DoomBox Kiosk
-After=multi-user.target graphical.target
+After=multi-user.target graphical.target mosquitto.service
 Wants=graphical.target
+Requires=mosquitto.service
 
 [Service]
 Type=simple
 User=root
 Group=root
 WorkingDirectory=/opt/doombox
-ExecStart=/opt/doombox/start_x.sh
+ExecStart=/opt/doombox/start.sh
 Restart=always
 RestartSec=5
 Environment=HOME=/root
@@ -225,9 +311,31 @@ EOF
 echo -e "${YELLOW}Creating startup scripts...${NC}"
 cat > "$DOOMBOX_DIR/start.sh" << 'EOF'
 #!/bin/bash
+# DoomBox Kiosk Startup Script
+
+# Ensure we're in the right directory
 cd /opt/doombox
+
+# Activate Python virtual environment
 source venv/bin/activate
+
+# Set display
 export DISPLAY=:0
+
+# Wait for display to be ready
+timeout=30
+while [ $timeout -gt 0 ]; do
+    if xset q &>/dev/null; then
+        echo "Display ready"
+        break
+    fi
+    echo "Waiting for display... ($timeout)"
+    sleep 1
+    ((timeout--))
+done
+
+# Start the kiosk application
+echo "Starting DoomBox Kiosk..."
 python kiosk.py
 EOF
 
@@ -241,11 +349,13 @@ cd /opt/doombox
 
 # Start X server in background if not running
 if ! pgrep -x "Xorg" > /dev/null; then
-    startx /opt/doombox/start.sh -- :0 -nolisten tcp &
+    echo "Starting X server..."
+    startx /opt/doombox/start.sh -- :0 -nolisten tcp vt7 &
     sleep 5
 fi
 
 # Wait for X to be ready
+echo "Waiting for X server..."
 while ! xset q &>/dev/null; do
     sleep 1
 done
@@ -265,19 +375,29 @@ systemctl start bluetooth
 # Add controller pairing script
 cat > "$DOOMBOX_DIR/pair_controller.sh" << 'EOF'
 #!/bin/bash
-echo "Put DualShock 4 in pairing mode (hold Share + PS buttons)"
-echo "Press Enter when ready..."
+echo "=========================================="
+echo "DualShock 4 Controller Pairing"
+echo "=========================================="
+echo ""
+echo "1. Put DualShock 4 in pairing mode:"
+echo "   Hold Share + PS buttons until light flashes"
+echo ""
+echo "2. Press Enter when controller is in pairing mode..."
 read
 
-# Scan for devices
-timeout 10 bluetoothctl scan on
+echo "Scanning for devices..."
+timeout 15 bluetoothctl scan on &
 
-# Instructions for manual pairing
-echo "Run 'bluetoothctl' and use these commands:"
+echo ""
+echo "Available commands in bluetoothctl:"
 echo "  scan on"
+echo "  devices"
 echo "  pair [MAC_ADDRESS]"
 echo "  trust [MAC_ADDRESS]"
 echo "  connect [MAC_ADDRESS]"
+echo ""
+echo "Opening bluetoothctl..."
+bluetoothctl
 EOF
 
 chmod +x "$DOOMBOX_DIR/pair_controller.sh"
@@ -287,6 +407,9 @@ cat > "$DOOMBOX_DIR/test_doom.sh" << 'EOF'
 #!/bin/bash
 cd /opt/doombox/doom
 export DISPLAY=:0
+
+echo "Testing DOOM via lzdoom wrapper..."
+echo "Press ESC or close window to exit"
 /usr/local/bin/lzdoom -iwad DOOM.WAD -width 640 -height 480 +name TEST_PLAYER
 EOF
 
@@ -295,6 +418,11 @@ chmod +x "$DOOMBOX_DIR/test_doom.sh"
 cat > "$DOOMBOX_DIR/test_kiosk.sh" << 'EOF'
 #!/bin/bash
 cd /opt/doombox
+
+echo "Starting DoomBox Kiosk Test..."
+echo "Make sure X11 is running (export DISPLAY=:0)"
+echo "Press Ctrl+C or ESC to exit"
+
 source venv/bin/activate
 export DISPLAY=:0
 python kiosk.py
@@ -306,6 +434,8 @@ cat > "$DOOMBOX_DIR/test_dsda_doom.sh" << 'EOF'
 #!/bin/bash
 cd /opt/doombox/doom
 export DISPLAY=:0
+
+echo "Testing dsda-doom directly..."
 dsda-doom -iwad DOOM.WAD -width 640 -height 480 -playername TEST_DIRECT
 EOF
 
@@ -313,11 +443,28 @@ chmod +x "$DOOMBOX_DIR/test_dsda_doom.sh"
 
 cat > "$DOOMBOX_DIR/debug_controller.sh" << 'EOF'
 #!/bin/bash
-echo "Testing joystick detection..."
-ls /dev/input/js*
+echo "=========================================="
+echo "DoomBox Controller Debug"
+echo "=========================================="
 echo ""
-echo "Controller info:"
-jstest /dev/input/js0
+echo "Checking for joystick devices..."
+ls -la /dev/input/js* 2>/dev/null || echo "No joystick devices found"
+echo ""
+echo "Checking for event devices..."
+ls -la /dev/input/event* 2>/dev/null
+echo ""
+echo "Bluetooth controller status..."
+bluetoothctl show
+echo ""
+echo "If controller is connected, test with:"
+echo "jstest /dev/input/js0"
+echo ""
+read -p "Press Enter to test controller (if available)..."
+if [ -e /dev/input/js0 ]; then
+    jstest /dev/input/js0
+else
+    echo "No controller found at /dev/input/js0"
+fi
 EOF
 
 chmod +x "$DOOMBOX_DIR/debug_controller.sh"
@@ -326,8 +473,10 @@ echo -e "${YELLOW}Creating convenience scripts...${NC}"
 cat > "$DOOMBOX_DIR/start_kiosk_service.sh" << 'EOF'
 #!/bin/bash
 echo "Enabling and starting DoomBox kiosk service..."
+systemctl daemon-reload
 systemctl enable doombox.service
 systemctl start doombox.service
+sleep 2
 systemctl status doombox.service
 EOF
 
@@ -338,18 +487,65 @@ cat > "$DOOMBOX_DIR/stop_kiosk_service.sh" << 'EOF'
 echo "Stopping DoomBox kiosk service..."
 systemctl stop doombox.service
 systemctl disable doombox.service
+systemctl status doombox.service
 EOF
 
 chmod +x "$DOOMBOX_DIR/stop_kiosk_service.sh"
 
 cat > "$DOOMBOX_DIR/view_scores.sh" << 'EOF'
 #!/bin/bash
-echo "DoomBox High Scores:"
-echo "==================="
-sqlite3 /opt/doombox/scores.db "SELECT player_name, score, timestamp FROM scores ORDER BY score DESC LIMIT 10;"
+echo "========================================"
+echo "DoomBox High Scores"
+echo "========================================"
+if [ -f /opt/doombox/scores.db ]; then
+    sqlite3 /opt/doombox/scores.db "SELECT ROW_NUMBER() OVER(ORDER BY score DESC) as rank, player_name, score, datetime(timestamp) as played_at FROM scores ORDER BY score DESC LIMIT 10;"
+else
+    echo "No scores database found yet."
+    echo "Database will be created when first game is played."
+fi
+echo ""
+echo "Press Enter to continue..."
+read
 EOF
 
 chmod +x "$DOOMBOX_DIR/view_scores.sh"
+
+cat > "$DOOMBOX_DIR/start_x_display.sh" << 'EOF'
+#!/bin/bash
+echo "Starting X11 display server..."
+export DISPLAY=:0
+
+# Kill any existing X server
+sudo pkill -f "X :0" 2>/dev/null || true
+sleep 2
+
+# Start X server
+echo "Launching X server on :0..."
+startx -- :0 -nolisten tcp vt7 &
+
+# Wait for X to start
+echo "Waiting for X server to start..."
+timeout=30
+while [ $timeout -gt 0 ]; do
+    if xset q &>/dev/null; then
+        echo "X server ready!"
+        break
+    fi
+    sleep 1
+    ((timeout--))
+done
+
+if ! xset q &>/dev/null; then
+    echo "ERROR: X server failed to start"
+    exit 1
+fi
+
+echo "X server is running. You can now run:"
+echo "  /opt/doombox/test_kiosk.sh"
+echo "  /opt/doombox/test_doom.sh"
+EOF
+
+chmod +x "$DOOMBOX_DIR/start_x_display.sh"
 
 # Function to create desktop entries
 create_desktop_entry() {
@@ -400,6 +596,7 @@ declare -a DESKTOP_ENTRIES=(
     "doombox-start-service.desktop:Start Kiosk Service:Enable and start the DoomBox kiosk service:x-terminal-emulator -e /opt/doombox/start_kiosk_service.sh:media-playback-start:true:System;DoomBox;"
     "doombox-stop-service.desktop:Stop Kiosk Service:Stop and disable the DoomBox kiosk service:x-terminal-emulator -e /opt/doombox/stop_kiosk_service.sh:media-playback-stop:true:System;DoomBox;"
     "doombox-view-scores.desktop:View High Scores:View DoomBox high scores database:x-terminal-emulator -e /opt/doombox/view_scores.sh:view-list-text:true:System;DoomBox;"
+    "doombox-start-x.desktop:Start X Display:Start X11 display server for testing:x-terminal-emulator -e /opt/doombox/start_x_display.sh:video-display:true:System;DoomBox;"
 )
 
 # Create all desktop entries
@@ -412,64 +609,72 @@ done
 echo -e "${YELLOW}Updating desktop database...${NC}"
 update-desktop-database /usr/share/applications
 
-echo -e "${YELLOW}Setting up XFCE menu configuration...${NC}"
-# Create custom menu configuration for XFCE
-mkdir -p /etc/xdg/menus
-cat > /etc/xdg/menus/applications-doombox.menu << 'EOF'
-<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
- "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
-
-<Menu>
-  <n>Applications</n>
-  <Directory>applications.directory</Directory>
-
-  <!-- DoomBox submenu -->
-  <Menu>
-    <n>DoomBox</n>
-    <Directory>DoomBox.directory</Directory>
-    <Include>
-      <Category>DoomBox</Category>
-    </Include>
-  </Menu>
-
-</Menu>
+echo -e "${YELLOW}Setting up XFCE auto-start...${NC}"
+mkdir -p /etc/xdg/autostart
+cat > /etc/xdg/autostart/doombox-kiosk.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=DoomBox Kiosk
+Comment=Auto-start DoomBox kiosk application
+Exec=/opt/doombox/start.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
 EOF
 
-echo -e "${YELLOW}Setting up auto-login for XFCE (optional)...${NC}"
-# Create auto-login configuration for DietPi
-if [ -f "/boot/dietpi.txt" ]; then
-    echo "AUTO_SETUP_AUTOMATED=1" >> /boot/dietpi.txt
-    echo "AUTO_SETUP_GLOBAL_PASSWORD=dietpi" >> /boot/dietpi.txt
-fi
+echo -e "${YELLOW}Setting up auto-login for root user...${NC}"
+# Configure auto-login for DietPi/Debian
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/override.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+EOF
 
 echo -e "${YELLOW}Setting permissions...${NC}"
 chown -R root:root "$DOOMBOX_DIR"
 chmod -R 755 "$DOOMBOX_DIR"
 
+# Make sure scripts are executable
+find "$DOOMBOX_DIR" -name "*.sh" -exec chmod +x {} \;
+
+echo -e "${YELLOW}Reloading systemd and enabling services...${NC}"
+systemctl daemon-reload
+
 echo -e "${GREEN}=========================================="
 echo -e "  DoomBox Setup Complete!"
 echo -e "=========================================="
+echo -e "Repository files: ${GREEN}$([ -f "$SCRIPT_DIR/kiosk.py" ] && echo "✓ Found and copied" || echo "✗ Not found")${NC}"
+echo -e ""
 echo -e "Next steps:"
-echo -e "1. Clone the main kiosk application:"
-echo -e "   cd /opt/doombox"
-echo -e "   git clone <your-repo-url> ."
+echo -e "1. ${YELLOW}Start X11 display server:${NC}"
+echo -e "   /opt/doombox/start_x_display.sh"
 echo -e ""
-echo -e "2. Pair your DualShock 4 controller:"
-echo -e "   /opt/doombox/pair_controller.sh"
-echo -e ""
-echo -e "3. Test components:"
+echo -e "2. ${YELLOW}Test components:${NC}"
 echo -e "   - Test dsda-doom: /opt/doombox/test_dsda_doom.sh"
 echo -e "   - Test wrapper: /opt/doombox/test_doom.sh"
 echo -e "   - Test kiosk: /opt/doombox/test_kiosk.sh"
 echo -e ""
-echo -e "4. Start the service:"
-echo -e "   systemctl enable doombox.service"
-echo -e "   systemctl start doombox.service"
+echo -e "3. ${YELLOW}Pair your DualShock 4 controller:${NC}"
+echo -e "   /opt/doombox/pair_controller.sh"
 echo -e ""
-echo -e "5. Check XFCE Applications Menu -> DoomBox"
-echo -e "   for all testing and management tools"
+echo -e "4. ${YELLOW}Start the service:${NC}"
+echo -e "   /opt/doombox/start_kiosk_service.sh"
+echo -e ""
+echo -e "5. ${YELLOW}For auto-boot kiosk mode:${NC}"
+echo -e "   systemctl set-default multi-user.target"
+echo -e "   systemctl enable doombox.service"
 echo -e ""
 echo -e "Files created in: $DOOMBOX_DIR"
 echo -e "DOOM.WAD location: $DOOM_DIR/DOOM.WAD"
 echo -e "Logs directory: $LOGS_DIR"
+echo -e ""
+echo -e "${YELLOW}XFCE Applications Menu -> DoomBox${NC} for all tools"
 echo -e "${NC}"
+
+# Final check
+if [ -f "$DOOMBOX_DIR/kiosk.py" ] && [ -s "$DOOMBOX_DIR/kiosk.py" ]; then
+    echo -e "${GREEN}✓ Kiosk application ready${NC}"
+else
+    echo -e "${RED}✗ Kiosk application needs manual copy from repository${NC}"
+fi
