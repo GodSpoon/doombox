@@ -50,3 +50,31 @@
 2025-07-06 08:45:58,453 - INFO - Received signal 15, shutting down...
 2025-07-06 08:45:58,485 - INFO - Cleaning up retro kiosk...
 2025-07-06 08:45:58,527 - INFO - Retro cleanup complete
+2025-07-06 09:13:52,537 - INFO - Initializing DoomBox Kiosk with improved layout...
+2025-07-06 09:13:53,297 - INFO - Using Puffin Liquid for headlines
+2025-07-06 09:13:53,298 - INFO - Using Puffin Regular for body text
+2025-07-06 09:13:53,298 - INFO - Font setup complete
+2025-07-06 09:13:53,301 - ERROR - QR code generation error: Bytes length does not equal format and resolution size
+2025-07-06 09:13:53,303 - INFO - Database initialized successfully
+2025-07-06 09:13:53,307 - INFO - Loaded video: DoomDemo1.mp4
+2025-07-06 09:13:53,307 - INFO - Loaded 29 background videos
+2025-07-06 09:13:53,307 - INFO - DoomBox Kiosk initialized successfully!
+2025-07-06 09:13:53,307 - INFO - Starting DoomBox kiosk main loop
+2025-07-06 09:13:59,675 - INFO - Received signal 15, shutting down...
+2025-07-06 09:13:59,676 - INFO - Cleaning up DoomBox kiosk...
+2025-07-06 09:13:59,676 - INFO - Video capture released
+2025-07-06 09:13:59,792 - INFO - Cleanup complete
+2025-07-06 09:14:39,073 - INFO - Initializing DoomBox Kiosk with improved layout...
+2025-07-06 09:14:39,841 - INFO - Using Puffin Liquid for headlines
+2025-07-06 09:14:39,842 - INFO - Using Puffin Regular for body text
+2025-07-06 09:14:39,842 - INFO - Font setup complete
+2025-07-06 09:14:39,846 - INFO - QR code generated successfully
+2025-07-06 09:14:39,846 - INFO - Database initialized successfully
+2025-07-06 09:14:39,850 - INFO - Loaded video: DoomDemo1.mp4
+2025-07-06 09:14:39,850 - INFO - Loaded 29 background videos
+2025-07-06 09:14:39,850 - INFO - DoomBox Kiosk initialized successfully!
+2025-07-06 09:14:39,850 - INFO - Starting DoomBox kiosk main loop
+2025-07-06 09:14:45,944 - INFO - Received signal 15, shutting down...
+2025-07-06 09:14:45,944 - INFO - Cleaning up DoomBox kiosk...
+2025-07-06 09:14:45,946 - INFO - Video capture released
+2025-07-06 09:14:46,081 - INFO - Cleanup complete

@@ -162,16 +162,16 @@ class DoomBoxKiosk:
         # Initialize renderer
         self.ui = CleanUIRenderer(self.screen, self.DISPLAY_SIZE)
         
-        # Setup fonts
-        self.setup_fonts()
-        
         # Application state
         self.running = True
         self.clock = pygame.time.Clock()
         self.form_url = "http://shmeglsdoombox.spoon.rip"
         
-        # Setup directories
+        # Setup directories first
         self.setup_directories()
+        
+        # Setup fonts after directories are created
+        self.setup_fonts()
         
         # Initialize components
         self.setup_qr_code()
@@ -185,7 +185,7 @@ class DoomBoxKiosk:
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.fonts_dir = os.path.join(self.base_dir, 'fonts')
         self.assets_dir = os.path.join(self.base_dir, 'assets')
-        self.videos_dir = os.path.join(self.base_dir, 'doombox', 'vid')
+        self.videos_dir = os.path.join(self.base_dir, 'vid')  # Fixed video directory path
         
         for directory in [self.fonts_dir, self.assets_dir, self.videos_dir]:
             os.makedirs(directory, exist_ok=True)
@@ -249,9 +249,24 @@ class DoomBoxKiosk:
             qr_img = qr.make_image(fill_color="black", back_color="white")
             qr_img = qr_img.resize((self.ui.LAYOUT['QR_SIZE'], self.ui.LAYOUT['QR_SIZE']))
             
-            # Convert to pygame surface
-            qr_string = qr_img.tobytes()
-            self.qr_surface = pygame.image.fromstring(qr_string, qr_img.size, 'RGB')
+            # Convert PIL image to pygame surface using numpy
+            import numpy as np
+            qr_array = np.array(qr_img)
+            
+            # Handle different image modes
+            if qr_img.mode == 'RGB':
+                self.qr_surface = pygame.surfarray.make_surface(qr_array.swapaxes(0, 1))
+            elif qr_img.mode == 'RGBA':
+                self.qr_surface = pygame.surfarray.make_surface(qr_array[:, :, :3].swapaxes(0, 1))
+            elif qr_img.mode == 'L':  # Grayscale
+                # Convert grayscale to RGB
+                qr_rgb = np.stack([qr_array, qr_array, qr_array], axis=2)
+                self.qr_surface = pygame.surfarray.make_surface(qr_rgb.swapaxes(0, 1))
+            else:
+                # Convert to RGB and try again
+                qr_img = qr_img.convert('RGB')
+                qr_array = np.array(qr_img)
+                self.qr_surface = pygame.surfarray.make_surface(qr_array.swapaxes(0, 1))
             
             logger.info("QR code generated successfully")
         except Exception as e:
@@ -261,7 +276,7 @@ class DoomBoxKiosk:
             self.qr_surface.fill(self.ui.COLORS['LIGHT_GRAY'])
             
             # Draw placeholder text
-            placeholder_text = self.font_medium.render("QR CODE", True, self.ui.COLORS['CHARCOAL'])
+            placeholder_text = self.font_medium.render("QR CODE", True, self.ui.COLORS['DARK_PURPLE'])
             text_rect = placeholder_text.get_rect(center=(self.ui.LAYOUT['QR_SIZE']//2, self.ui.LAYOUT['QR_SIZE']//2))
             self.qr_surface.blit(placeholder_text, text_rect)
 
