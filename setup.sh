@@ -7,8 +7,8 @@
 set -e
 
 echo "=========================================="
-echo "  shmegl's DoomBox Setup"
-echo "  femboy powered        "
+echo "  Shmegl's DoomBox Setup"
+echo "  made 4 hot ppl"
 echo "=========================================="
 
 # Colors for output
@@ -52,35 +52,43 @@ apt install -y \
     mosquitto-clients \
     sqlite3 \
     dsda-doom \
-    doom-wad-shareware
+    doom-wad-shareware \
+    python3 \
+    python3-pip \
+    python3-venv \
+    build-essential
 
-echo -e "${YELLOW}Installing DOOM engine...${NC}"
-# Check which DOOM engine is available and create appropriate wrapper
+echo -e "${YELLOW}Setting up DOOM engine (dsda-doom)...${NC}"
+# Check for dsda-doom installation
 if command -v dsda-doom &> /dev/null; then
     DOOM_ENGINE="dsda-doom"
     echo "Found dsda-doom engine"
 elif [ -f "/usr/games/dsda-doom" ]; then
     DOOM_ENGINE="/usr/games/dsda-doom"
     echo "Found dsda-doom in /usr/games/"
-elif [ -f "/usr/games/doom" ]; then
-    DOOM_ENGINE="/usr/games/doom"
-    echo "Found doom in /usr/games/"
-elif command -v prboom-plus &> /dev/null; then
-    DOOM_ENGINE="prboom-plus"
-    echo "Found prboom-plus engine"
 else
-    echo "No DOOM engine found, installing additional packages..."
-    apt install -y prboom-plus
-    DOOM_ENGINE="prboom-plus"
+    echo -e "${RED}dsda-doom not found! Installing from source...${NC}"
+    # Install dsda-doom from source if not available in packages
+    cd /tmp
+    git clone https://github.com/kraflab/dsda-doom.git
+    cd dsda-doom
+    apt install -y cmake libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev libsdl2-net-dev
+    mkdir build && cd build
+    cmake ..
+    make -j4
+    make install
+    DOOM_ENGINE="dsda-doom"
 fi
 
 echo "Using DOOM engine: $DOOM_ENGINE"
 
-# Create lzdoom wrapper script for compatibility
-echo "Creating lzdoom compatibility wrapper..."
-cat > /usr/local/bin/lzdoom << EOF
+# Create lzdoom compatibility wrapper script for existing kiosk code
+echo "Creating lzdoom compatibility wrapper for dsda-doom..."
+cat > /usr/local/bin/lzdoom << 'EOF'
 #!/bin/bash
 # DOOM engine wrapper script for DoomBox compatibility
+# Translates lzdoom/gzdoom arguments to dsda-doom compatible format
+
 DOOM_ARGS=()
 IWAD_PATH=""
 PLAYER_NAME=""
@@ -88,19 +96,19 @@ WIDTH="640"
 HEIGHT="480"
 FULLSCREEN=false
 
-# Parse arguments to convert lzdoom/gzdoom style to our DOOM engine
-while [[ \$# -gt 0 ]]; do
-    case \$1 in
+# Parse arguments to convert lzdoom/gzdoom style to dsda-doom
+while [[ $# -gt 0 ]]; do
+    case $1 in
         -iwad)
-            IWAD_PATH="\$2"
+            IWAD_PATH="$2"
             shift 2
             ;;
         -width)
-            WIDTH="\$2"
+            WIDTH="$2"
             shift 2
             ;;
         -height)
-            HEIGHT="\$2"
+            HEIGHT="$2"
             shift 2
             ;;
         -fullscreen)
@@ -108,47 +116,53 @@ while [[ \$# -gt 0 ]]; do
             shift
             ;;
         +name)
-            PLAYER_NAME="\$2"
+            PLAYER_NAME="$2"
             shift 2
             ;;
         *)
             # Pass through other arguments
-            DOOM_ARGS+=("\$1")
+            DOOM_ARGS+=("$1")
             shift
             ;;
     esac
 done
 
-# Build DOOM command
-DOOM_CMD=($DOOM_ENGINE)
+# Build dsda-doom command
+DOOM_CMD=(dsda-doom)
 
-if [ -n "\$IWAD_PATH" ]; then
-    DOOM_CMD+=(-iwad "\$IWAD_PATH")
+if [ -n "$IWAD_PATH" ]; then
+    DOOM_CMD+=(-iwad "$IWAD_PATH")
 fi
 
-# Set resolution
-DOOM_CMD+=(-width "\$WIDTH" -height "\$HEIGHT")
+# Set video mode for dsda-doom
+DOOM_CMD+=(-width "$WIDTH" -height "$HEIGHT")
 
 # Set fullscreen mode
-if [ "\$FULLSCREEN" = true ]; then
+if [ "$FULLSCREEN" = true ]; then
     DOOM_CMD+=(-fullscreen)
 fi
 
+# Player name handling for dsda-doom
+if [ -n "$PLAYER_NAME" ]; then
+    # dsda-doom uses different syntax for player names
+    DOOM_CMD+=(-playername "$PLAYER_NAME")
+fi
+
 # Add any additional arguments
-DOOM_CMD+=("\${DOOM_ARGS[@]}")
+DOOM_CMD+=("${DOOM_ARGS[@]}")
 
 # Create logs directory if it doesn't exist
 mkdir -p /opt/doombox/logs
 
 # Log the command for debugging
-echo "\$(date): DOOM Command: \${DOOM_CMD[*]}" >> /opt/doombox/logs/doom.log
+echo "$(date): DOOM Command: ${DOOM_CMD[*]}" >> /opt/doombox/logs/doom.log
 
-# Execute DOOM engine
-exec "\${DOOM_CMD[@]}"
+# Execute dsda-doom
+exec "${DOOM_CMD[@]}"
 EOF
 
 chmod +x /usr/local/bin/lzdoom
-echo -e "${GREEN}DOOM engine installed with lzdoom compatibility wrapper!${NC}"
+echo -e "${GREEN}dsda-doom installed with lzdoom compatibility wrapper!${NC}"
 
 echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
 cd "$DOOMBOX_DIR"
@@ -157,7 +171,7 @@ source venv/bin/activate
 
 echo -e "${YELLOW}Installing Python dependencies...${NC}"
 pip install --upgrade pip
-cat > requirements.txt << EOF
+cat > requirements.txt << 'EOF'
 flask==2.3.3
 qrcode[pil]==7.4.2
 pygame==2.5.2
@@ -178,393 +192,20 @@ else
     echo -e "${GREEN}DOOM.WAD already exists${NC}"
 fi
 
-echo -e "${YELLOW}Creating main kiosk application...${NC}"
-cat > "$DOOMBOX_DIR/kiosk.py" << 'EOF'
-#!/usr/bin/env python3
-"""
-shmegl's DoomBox Kiosk Application
-Displays QR code, manages game sessions, tracks scores
-"""
-
-import pygame
-import qrcode
-import json
-import sqlite3
-import subprocess
-import time
-import threading
-import requests
-import signal
-import sys
-import os
-from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont
-import paho.mqtt.client as mqtt
-
-class DoomBoxKiosk:
-    def __init__(self):
-        # Initialize pygame
-        pygame.init()
-        pygame.joystick.init()
-        
-        # Display settings
-        self.DISPLAY_SIZE = (1280, 960)
-        self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
-        pygame.display.set_caption("shmegl's DoomBox")
-        
-        # Colors
-        self.BLACK = (0, 0, 0)
-        self.WHITE = (255, 255, 255)
-        self.RED = (255, 0, 0)
-        self.GREEN = (0, 255, 0)
-        self.BLUE = (0, 0, 255)
-        self.YELLOW = (255, 255, 0)
-        
-        # Paths
-        self.base_dir = "/opt/doombox"
-        self.doom_dir = f"{self.base_dir}/doom"
-        self.db_path = f"{self.base_dir}/scores.db"
-        
-        # Game state
-        self.current_player = None
-        self.game_running = False
-        
-        # Controller
-        self.controller = None
-        self.konami_sequence = [
-            pygame.K_UP, pygame.K_UP, pygame.K_DOWN, pygame.K_DOWN,
-            pygame.K_LEFT, pygame.K_RIGHT, pygame.K_LEFT, pygame.K_RIGHT,
-            pygame.K_b, pygame.K_a  # B, A on controller
-        ]
-        self.konami_input = []
-        
-        # Initialize database
-        self.init_database()
-        
-        # Generate QR code
-        self.qr_image = self.generate_qr_code()
-        
-        # Start MQTT listener (optional)
-        self.setup_mqtt()
-        
-        print("DoomBox Kiosk initialized")
-
-    def init_database(self):
-        """Initialize SQLite database for scores"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS scores (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_name TEXT NOT NULL,
-                score INTEGER NOT NULL,
-                timestamp DATETIME NOT NULL,
-                level_reached INTEGER DEFAULT 1
-            )
-        ''')
-        conn.commit()
-        conn.close()
-
-    def generate_qr_code(self):
-        """Generate QR code for the registration form"""
-        # Replace with your actual GitHub Pages URL
-        form_url = "https://your-username.github.io/doombox-form/"
-        
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(form_url)
-        qr.make(fit=True)
-        
-        # Create QR code image
-        qr_img = qr.make_image(fill_color="black", back_color="white")
-        qr_img = qr_img.resize((300, 300))
-        
-        # Convert PIL image to pygame surface
-        qr_surface = pygame.image.fromstring(qr_img.tobytes(), qr_img.size, qr_img.mode)
-        return qr_surface
-
-    def setup_mqtt(self):
-        """Setup MQTT client for remote game triggers"""
-        try:
-            self.mqtt_client = mqtt.Client()
-            self.mqtt_client.on_connect = self.on_mqtt_connect
-            self.mqtt_client.on_message = self.on_mqtt_message
-            # Connect to local mosquitto broker
-            self.mqtt_client.connect("localhost", 1883, 60)
-            self.mqtt_client.loop_start()
-        except Exception as e:
-            print(f"MQTT setup failed: {e}")
-
-    def on_mqtt_connect(self, client, userdata, flags, rc):
-        """MQTT connection callback"""
-        print(f"MQTT connected with result code {rc}")
-        client.subscribe("doombox/start_game")
-
-    def on_mqtt_message(self, client, userdata, msg):
-        """MQTT message callback"""
-        try:
-            data = json.loads(msg.payload.decode())
-            player_name = data.get('player_name', 'Unknown')
-            print(f"MQTT: Starting game for {player_name}")
-            self.start_game(player_name)
-        except Exception as e:
-            print(f"MQTT message error: {e}")
-
-    def setup_controller(self):
-        """Setup DualShock 4 controller"""
-        pygame.joystick.quit()
-        pygame.joystick.init()
-        
-        if pygame.joystick.get_count() > 0:
-            self.controller = pygame.joystick.Joystick(0)
-            self.controller.init()
-            print(f"Controller connected: {self.controller.get_name()}")
-            return True
-        return False
-
-    def get_top_scores(self, limit=10):
-        """Get top scores from database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT player_name, score, timestamp 
-            FROM scores 
-            ORDER BY score DESC, timestamp ASC 
-            LIMIT ?
-        ''', (limit,))
-        scores = cursor.fetchall()
-        conn.close()
-        return scores
-
-    def add_score(self, player_name, score, level=1):
-        """Add score to database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO scores (player_name, score, timestamp, level_reached)
-            VALUES (?, ?, ?, ?)
-        ''', (player_name, score, datetime.now(), level))
-        conn.commit()
-        conn.close()
-        print(f"Score added: {player_name} - {score}")
-
-    def draw_screen(self):
-        """Draw the main kiosk screen"""
-        self.screen.fill(self.BLACK)
-        
-        # Title
-        font_large = pygame.font.Font(None, 72)
-        font_medium = pygame.font.Font(None, 48)
-        font_small = pygame.font.Font(None, 32)
-        
-        title = font_large.render("shmegl's DoomBox", True, self.RED)
-        subtitle = font_medium.render("Highest score gets a free tattoo!", True, self.WHITE)
-        instruction = font_small.render("Scan the QR code and fill out the form to play", True, self.GREEN)
-        
-        # Center title elements
-        self.screen.blit(title, (self.DISPLAY_SIZE[0]//2 - title.get_width()//2, 50))
-        self.screen.blit(subtitle, (self.DISPLAY_SIZE[0]//2 - subtitle.get_width()//2, 130))
-        self.screen.blit(instruction, (self.DISPLAY_SIZE[0]//2 - instruction.get_width()//2, 180))
-        
-        # QR Code
-        qr_x = 100
-        qr_y = 250
-        self.screen.blit(self.qr_image, (qr_x, qr_y))
-        
-        # Top scores
-        scores = self.get_top_scores()
-        scores_title = font_medium.render("TOP SCORES", True, self.YELLOW)
-        self.screen.blit(scores_title, (500, 250))
-        
-        y_offset = 300
-        for i, (name, score, timestamp) in enumerate(scores):
-            color = self.YELLOW if i == 0 else self.WHITE
-            score_text = font_small.render(f"{i+1}. {name}: {score}", True, color)
-            self.screen.blit(score_text, (500, y_offset + i * 35))
-        
-        # Status text
-        if self.game_running:
-            status_text = font_medium.render(f"PLAYING: {self.current_player}", True, self.GREEN)
-            self.screen.blit(status_text, (self.DISPLAY_SIZE[0]//2 - status_text.get_width()//2, 800))
-        
-        pygame.display.flip()
-
-    def handle_controller_input(self):
-        """Handle controller input including Konami code"""
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return False
-                
-                # Check Konami code
-                self.konami_input.append(event.key)
-                if len(self.konami_input) > len(self.konami_sequence):
-                    self.konami_input.pop(0)
-                
-                if self.konami_input == self.konami_sequence:
-                    print("Konami code activated!")
-                    self.start_game("TEST_PLAYER")
-                    self.konami_input = []
-            
-            elif event.type == pygame.JOYBUTTONDOWN:
-                if self.controller:
-                    # Map controller buttons to keyboard events for Konami code
-                    button_map = {
-                        0: pygame.K_a,      # X button -> A
-                        1: pygame.K_b,      # Circle -> B
-                        # Add more mappings as needed
-                    }
-                    
-                    if event.button in button_map:
-                        mapped_key = button_map[event.button]
-                        self.konami_input.append(mapped_key)
-                        
-                        if len(self.konami_input) > len(self.konami_sequence):
-                            self.konami_input.pop(0)
-                        
-                        if self.konami_input == self.konami_sequence:
-                            print("Konami code activated!")
-                            self.start_game("TEST_PLAYER")
-                            self.konami_input = []
-        
-        return True
-
-    def start_game(self, player_name):
-        """Start DOOM game with player name"""
-        if self.game_running:
-            print("Game already running!")
-            return
-        
-        self.current_player = player_name
-        self.game_running = True
-        
-        print(f"Starting DOOM for player: {player_name}")
-        
-        # Launch DOOM in a separate thread
-        game_thread = threading.Thread(target=self._run_doom, args=(player_name,))
-        game_thread.daemon = True
-        game_thread.start()
-
-    def _run_doom(self, player_name):
-        """Run DOOM game in subprocess"""
-        try:
-            # DOOM command
-            doom_cmd = [
-                '/usr/local/bin/lzdoom',
-                '-iwad', f'{self.doom_dir}/DOOM.WAD',
-                '-width', '640',
-                '-height', '480',
-                '-fullscreen',
-                '+name', player_name
-            ]
-            
-            print(f"Launching DOOM: {' '.join(doom_cmd)}")
-            
-            # Run DOOM
-            process = subprocess.Popen(doom_cmd, cwd=self.doom_dir)
-            process.wait()
-            
-            # Game ended, extract score (this is simplified)
-            # In a real implementation, you'd parse DOOM's output or save files
-            score = self._extract_score()
-            
-            if not player_name.startswith("TEST_"):
-                self.add_score(player_name, score)
-            
-            print(f"Game ended. Score: {score}")
-            
-        except Exception as e:
-            print(f"Error running DOOM: {e}")
-        finally:
-            self.game_running = False
-            self.current_player = None
-
-    def _extract_score(self):
-        """Extract score from DOOM (simplified implementation)"""
-        # This is a placeholder - in reality you'd need to:
-        # 1. Parse DOOM's save files
-        # 2. Use DOOM's demo recording features
-        # 3. Implement a custom DOOM mod that writes scores
-        import random
-        return random.randint(1000, 50000)
-
-    def check_for_new_players(self):
-        """Check for new players via webhook/API/file"""
-        # This could check:
-        # 1. A local file written by a webhook
-        # 2. An API endpoint
-        # 3. MQTT messages (already implemented)
-        
-        try:
-            # Example: Check for a trigger file
-            trigger_file = f"{self.base_dir}/new_player.json"
-            if os.path.exists(trigger_file):
-                with open(trigger_file, 'r') as f:
-                    data = json.load(f)
-                
-                player_name = data.get('player_name', 'Unknown')
-                self.start_game(player_name)
-                
-                # Remove trigger file
-                os.remove(trigger_file)
-        except Exception as e:
-            print(f"Error checking for new players: {e}")
-
-    def run(self):
-        """Main kiosk loop"""
-        clock = pygame.time.Clock()
-        running = True
-        
-        print("Starting DoomBox kiosk...")
-        
-        while running:
-            # Setup controller if not connected
-            if not self.controller:
-                self.setup_controller()
-            
-            # Handle input
-            running = self.handle_controller_input()
-            
-            # Check for new players
-            self.check_for_new_players()
-            
-            # Draw screen
-            self.draw_screen()
-            
-            # Limit FPS
-            clock.tick(30)
-        
-        pygame.quit()
-        sys.exit()
-
-def signal_handler(sig, frame):
-    """Handle Ctrl+C gracefully"""
-    print("\nShutting down DoomBox...")
-    pygame.quit()
-    sys.exit(0)
-
-if __name__ == "__main__":
-    signal.signal(signal.SIGINT, signal_handler)
-    
-    # Change to doombox directory
-    os.chdir("/opt/doombox")
-    
-    kiosk = DoomBoxKiosk()
-    kiosk.run()
-EOF
+echo -e "${YELLOW}Cloning main kiosk application from repository...${NC}"
+cd "$DOOMBOX_DIR"
+# Note: Replace with actual repository URL when available
+# git clone https://github.com/your-username/doombox-kiosk.git .
+# For now, we'll create a placeholder
+echo "# Main kiosk application will be cloned from repository" > kiosk.py
+echo "# Repository URL: https://github.com/your-username/doombox-kiosk" >> kiosk.py
 
 echo -e "${YELLOW}Creating systemd service...${NC}"
-cat > /etc/systemd/system/doombox.service << EOF
+cat > /etc/systemd/system/doombox.service << 'EOF'
 [Unit]
 Description=shmegl's DoomBox Kiosk
-After=multi-user.target
-Wants=multi-user.target
+After=multi-user.target graphical.target
+Wants=graphical.target
 
 [Service]
 Type=simple
@@ -575,12 +216,13 @@ ExecStart=/opt/doombox/start_x.sh
 Restart=always
 RestartSec=5
 Environment=HOME=/root
+Environment=DISPLAY=:0
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
 EOF
 
-echo -e "${YELLOW}Creating startup script...${NC}"
+echo -e "${YELLOW}Creating startup scripts...${NC}"
 cat > "$DOOMBOX_DIR/start.sh" << 'EOF'
 #!/bin/bash
 cd /opt/doombox
@@ -591,11 +233,6 @@ EOF
 
 chmod +x "$DOOMBOX_DIR/start.sh"
 
-echo -e "${YELLOW}Setting up auto-start configuration...${NC}"
-# For DietPi, we'll use systemd service to start the kiosk
-# The service will handle starting X and the application
-
-# Create autostart script that will be called by systemd
 cat > "$DOOMBOX_DIR/start_x.sh" << 'EOF'
 #!/bin/bash
 # Start X server and DoomBox kiosk
@@ -604,7 +241,7 @@ cd /opt/doombox
 
 # Start X server in background if not running
 if ! pgrep -x "Xorg" > /dev/null; then
-    startx /opt/doombox/start.sh &
+    startx /opt/doombox/start.sh -- :0 -nolisten tcp &
     sleep 5
 fi
 
@@ -635,7 +272,7 @@ read
 # Scan for devices
 timeout 10 bluetoothctl scan on
 
-# You'll need to manually pair the controller
+# Instructions for manual pairing
 echo "Run 'bluetoothctl' and use these commands:"
 echo "  scan on"
 echo "  pair [MAC_ADDRESS]"
@@ -649,6 +286,7 @@ echo -e "${YELLOW}Creating test scripts...${NC}"
 cat > "$DOOMBOX_DIR/test_doom.sh" << 'EOF'
 #!/bin/bash
 cd /opt/doombox/doom
+export DISPLAY=:0
 /usr/local/bin/lzdoom -iwad DOOM.WAD -width 640 -height 480 +name TEST_PLAYER
 EOF
 
@@ -658,19 +296,180 @@ cat > "$DOOMBOX_DIR/test_kiosk.sh" << 'EOF'
 #!/bin/bash
 cd /opt/doombox
 source venv/bin/activate
+export DISPLAY=:0
 python kiosk.py
 EOF
 
 chmod +x "$DOOMBOX_DIR/test_kiosk.sh"
 
-echo -e "${YELLOW}Creating desktop entries for test scripts...${NC}"
-mkdir -p /usr/share/applications
+cat > "$DOOMBOX_DIR/test_dsda_doom.sh" << 'EOF'
+#!/bin/bash
+cd /opt/doombox/doom
+export DISPLAY=:0
+dsda-doom -iwad DOOM.WAD -width 640 -height 480 -playername TEST_DIRECT
+EOF
 
-cat > /usr/share/applications/doombox-test-doom.desktop << 'EOF'
+chmod +x "$DOOMBOX_DIR/test_dsda_doom.sh"
+
+cat > "$DOOMBOX_DIR/debug_controller.sh" << 'EOF'
+#!/bin/bash
+echo "Testing joystick detection..."
+ls /dev/input/js*
+echo ""
+echo "Controller info:"
+jstest /dev/input/js0
+EOF
+
+chmod +x "$DOOMBOX_DIR/debug_controller.sh"
+
+echo -e "${YELLOW}Creating convenience scripts...${NC}"
+cat > "$DOOMBOX_DIR/start_kiosk_service.sh" << 'EOF'
+#!/bin/bash
+echo "Enabling and starting DoomBox kiosk service..."
+systemctl enable doombox.service
+systemctl start doombox.service
+systemctl status doombox.service
+EOF
+
+chmod +x "$DOOMBOX_DIR/start_kiosk_service.sh"
+
+cat > "$DOOMBOX_DIR/stop_kiosk_service.sh" << 'EOF'
+#!/bin/bash
+echo "Stopping DoomBox kiosk service..."
+systemctl stop doombox.service
+systemctl disable doombox.service
+EOF
+
+chmod +x "$DOOMBOX_DIR/stop_kiosk_service.sh"
+
+cat > "$DOOMBOX_DIR/view_scores.sh" << 'EOF'
+#!/bin/bash
+echo "DoomBox High Scores:"
+echo "==================="
+sqlite3 /opt/doombox/scores.db "SELECT player_name, score, timestamp FROM scores ORDER BY score DESC LIMIT 10;"
+EOF
+
+chmod +x "$DOOMBOX_DIR/view_scores.sh"
+
+# Function to create desktop entries
+create_desktop_entry() {
+    local filename="$1"
+    local name="$2"
+    local comment="$3"
+    local exec="$4"
+    local icon="$5"
+    local terminal="$6"
+    local categories="$7"
+    
+    cat > "/usr/share/applications/${filename}" << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=DoomBox - Test DOOM
-Comment=Test the DOOM engine directly
-Exec=/opt/doombox/test_doom.sh
+Name=${name}
+Comment=${comment}
+Exec=${exec}
+Icon=${icon}
+Terminal=${terminal}
+Categories=${categories}
+EOF
+}
+
+echo -e "${YELLOW}Creating desktop entries for XFCE...${NC}"
+mkdir -p /usr/share/applications
+mkdir -p /usr/share/desktop-directories
+
+# Create DoomBox category
+cat > /usr/share/desktop-directories/DoomBox.directory << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Directory
+Name=DoomBox
+Comment=shmegl's DoomBox Testing and Management Tools
 Icon=applications-games
+EOF
+
+# Define desktop entries in arrays for easy management
+declare -a DESKTOP_ENTRIES=(
+    # filename:name:comment:exec:icon:terminal:categories
+    "doombox-kiosk.desktop:DoomBox Kiosk:Main DoomBox kiosk application:/opt/doombox/test_kiosk.sh:applications-games:false:Game;DoomBox;"
+    "doombox-test-doom.desktop:Test DOOM (Wrapper):Test DOOM via lzdoom compatibility wrapper:/opt/doombox/test_doom.sh:applications-games:false:Game;DoomBox;"
+    "doombox-test-dsda.desktop:Test dsda-doom (Direct):Test dsda-doom engine directly:/opt/doombox/test_dsda_doom.sh:applications-games:false:Game;DoomBox;"
+    "doombox-debug-controller.desktop:Debug Controller:Test and debug DualShock 4 controller:x-terminal-emulator -e /opt/doombox/debug_controller.sh:input-gaming:true:System;DoomBox;"
+    "doombox-pair-controller.desktop:Pair Controller:Pair DualShock 4 controller via Bluetooth:x-terminal-emulator -e /opt/doombox/pair_controller.sh:bluetooth:true:System;DoomBox;"
+    "doombox-view-logs.desktop:View DoomBox Logs:View DoomBox system and game logs:x-terminal-emulator -e tail -f /opt/doombox/logs/doom.log:text-x-log:true:System;DoomBox;"
+    "doombox-start-service.desktop:Start Kiosk Service:Enable and start the DoomBox kiosk service:x-terminal-emulator -e /opt/doombox/start_kiosk_service.sh:media-playback-start:true:System;DoomBox;"
+    "doombox-stop-service.desktop:Stop Kiosk Service:Stop and disable the DoomBox kiosk service:x-terminal-emulator -e /opt/doombox/stop_kiosk_service.sh:media-playback-stop:true:System;DoomBox;"
+    "doombox-view-scores.desktop:View High Scores:View DoomBox high scores database:x-terminal-emulator -e /opt/doombox/view_scores.sh:view-list-text:true:System;DoomBox;"
+)
+
+# Create all desktop entries
+for entry in "${DESKTOP_ENTRIES[@]}"; do
+    IFS=':' read -r filename name comment exec icon terminal categories <<< "$entry"
+    create_desktop_entry "$filename" "$name" "$comment" "$exec" "$icon" "$terminal" "$categories"
+    echo "Created desktop entry: $name"
+done
+
+echo -e "${YELLOW}Updating desktop database...${NC}"
+update-desktop-database /usr/share/applications
+
+echo -e "${YELLOW}Setting up XFCE menu configuration...${NC}"
+# Create custom menu configuration for XFCE
+mkdir -p /etc/xdg/menus
+cat > /etc/xdg/menus/applications-doombox.menu << 'EOF'
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+ "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
+
+<Menu>
+  <n>Applications</n>
+  <Directory>applications.directory</Directory>
+
+  <!-- DoomBox submenu -->
+  <Menu>
+    <n>DoomBox</n>
+    <Directory>DoomBox.directory</Directory>
+    <Include>
+      <Category>DoomBox</Category>
+    </Include>
+  </Menu>
+
+</Menu>
+EOF
+
+echo -e "${YELLOW}Setting up auto-login for XFCE (optional)...${NC}"
+# Create auto-login configuration for DietPi
+if [ -f "/boot/dietpi.txt" ]; then
+    echo "AUTO_SETUP_AUTOMATED=1" >> /boot/dietpi.txt
+    echo "AUTO_SETUP_GLOBAL_PASSWORD=dietpi" >> /boot/dietpi.txt
+fi
+
+echo -e "${YELLOW}Setting permissions...${NC}"
+chown -R root:root "$DOOMBOX_DIR"
+chmod -R 755 "$DOOMBOX_DIR"
+
+echo -e "${GREEN}=========================================="
+echo -e "  DoomBox Setup Complete!"
+echo -e "=========================================="
+echo -e "Next steps:"
+echo -e "1. Clone the main kiosk application:"
+echo -e "   cd /opt/doombox"
+echo -e "   git clone <your-repo-url> ."
+echo -e ""
+echo -e "2. Pair your DualShock 4 controller:"
+echo -e "   /opt/doombox/pair_controller.sh"
+echo -e ""
+echo -e "3. Test components:"
+echo -e "   - Test dsda-doom: /opt/doombox/test_dsda_doom.sh"
+echo -e "   - Test wrapper: /opt/doombox/test_doom.sh"
+echo -e "   - Test kiosk: /opt/doombox/test_kiosk.sh"
+echo -e ""
+echo -e "4. Start the service:"
+echo -e "   systemctl enable doombox.service"
+echo -e "   systemctl start doombox.service"
+echo -e ""
+echo -e "5. Check XFCE Applications Menu -> DoomBox"
+echo -e "   for all testing and management tools"
+echo -e ""
+echo -e "Files created in: $DOOMBOX_DIR"
+echo -e "DOOM.WAD location: $DOOM_DIR/DOOM.WAD"
+echo -e "Logs directory: $LOGS_DIR"
+echo -e "${NC}"
