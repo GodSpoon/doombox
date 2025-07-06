@@ -1,0 +1,8 @@
+pygame==2.5.2
+qrqrcode[pil]==7.4.2
+opencv-python==4.8.1.78
+paho-mqtt>=1.6.1
+requests==2.31.0
+pillow==10.0.1
+psutil==5.9.6
+flask==2.3.3

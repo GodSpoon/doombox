@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # shmegl's DoomBox Setup Script
-# For Radxa Zero running Debian 12 (DietPI)
-# Run as root: sudo bash setup.sh
+# Builds the DoomBox application in a local "app" folder
+# Run from the repository root: bash setup.sh
 
 set -e
 
@@ -18,18 +18,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Please run as root (sudo bash setup.sh)${NC}"
-    exit 1
-fi
-
 # Get the directory where this script is located (should be repo root)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 echo -e "${YELLOW}Running from: $SCRIPT_DIR${NC}"
 
-# Define paths
-DOOMBOX_DIR="/opt/doombox"
+# Define paths - everything goes in the "app" folder
+DOOMBOX_DIR="$SCRIPT_DIR/app"
 DOOM_DIR="$DOOMBOX_DIR/doom"
 LOGS_DIR="$DOOMBOX_DIR/logs"
 FONTS_DIR="$DOOMBOX_DIR/fonts"
@@ -44,40 +38,34 @@ mkdir -p "$FONTS_DIR"
 mkdir -p "$VID_DIR"
 mkdir -p "$IMG_DIR"
 
-echo -e "${YELLOW}Updating system packages...${NC}"
-apt update
-apt upgrade -y
+echo -e "${YELLOW}System dependencies required:${NC}"
+echo -e "${BLUE}Please ensure the following packages are installed:${NC}"
+echo -e "  - git, wget, curl, unzip"
+echo -e "  - python3, python3-pip, python3-venv"
+echo -e "  - python3-opencv, libopencv-dev"
+echo -e "  - ffmpeg, libavcodec-dev, libavformat-dev, libswscale-dev"
+echo -e "  - dsda-doom, doom-wad-shareware"
+echo -e "  - sqlite3"
+echo -e "  - bluetooth, bluez, bluez-tools, joystick, jstest-gtk"
+echo -e "  - feh, mosquitto, mosquitto-clients (optional)"
+echo -e ""
+echo -e "${YELLOW}To install on Debian/Ubuntu:${NC}"
+echo -e "sudo apt update && sudo apt install -y git wget curl unzip python3 python3-pip python3-venv python3-opencv libopencv-dev ffmpeg libavcodec-dev libavformat-dev libswscale-dev dsda-doom doom-wad-shareware sqlite3 bluetooth bluez bluez-tools joystick jstest-gtk feh mosquitto mosquitto-clients"
+echo -e ""
 
-echo -e "${YELLOW}Installing system dependencies...${NC}"
-apt install -y \
-    git \
-    wget \
-    curl \
-    unzip \
-    bluetooth \
-    bluez \
-    bluez-tools \
-    joystick \
-    jstest-gtk \
-    feh \
-    mosquitto \
-    mosquitto-clients \
-    sqlite3 \
-    dsda-doom \
-    doom-wad-shareware \
-    python3 \
-    python3-pip \
-    python3-venv \
-    python3-opencv \
-    build-essential \
-    xorg \
-    xinit \
-    xfce4 \
-    xfce4-goodies \
-    libopencv-dev
+# Check for critical dependencies
+MISSING_DEPS=()
+command -v python3 >/dev/null || MISSING_DEPS+=("python3")
+command -v pip3 >/dev/null || command -v python3 -m pip >/dev/null || MISSING_DEPS+=("python3-pip")
+command -v dsda-doom >/dev/null || [ -f "/usr/games/dsda-doom" ] || MISSING_DEPS+=("dsda-doom")
 
-echo -e "${YELLOW}Installing video processing dependencies...${NC}"
-apt install -y ffmpeg libavcodec-dev libavformat-dev libswscale-dev
+if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+    echo -e "${RED}Missing critical dependencies: ${MISSING_DEPS[*]}${NC}"
+    echo -e "${YELLOW}Please install them before continuing.${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Critical dependencies found${NC}"
 
 echo -e "${YELLOW}Setting up DOOM engine (dsda-doom)...${NC}"
 # Check for dsda-doom installation
@@ -88,24 +76,17 @@ elif [ -f "/usr/games/dsda-doom" ]; then
     DOOM_ENGINE="/usr/games/dsda-doom"
     echo "Found dsda-doom in /usr/games/"
 else
-    echo -e "${RED}dsda-doom not found! Installing from source...${NC}"
-    # Install dsda-doom from source if not available in packages
-    cd /tmp
-    git clone https://github.com/kraflab/dsda-doom.git
-    cd dsda-doom
-    apt install -y cmake libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev libsdl2-net-dev
-    mkdir build && cd build
-    cmake ..
-    make -j4
-    make install
-    DOOM_ENGINE="dsda-doom"
+    echo -e "${RED}dsda-doom not found!${NC}"
+    echo -e "${YELLOW}Please install dsda-doom:${NC}"
+    echo -e "  sudo apt install dsda-doom"
+    exit 1
 fi
 
 echo "Using DOOM engine: $DOOM_ENGINE"
 
-# Create lzdoom compatibility wrapper script for existing kiosk code
+# Create lzdoom compatibility wrapper script
 echo "Creating lzdoom compatibility wrapper for dsda-doom..."
-cat >/usr/local/bin/lzdoom <<'EOF'
+cat >"$DOOMBOX_DIR/lzdoom" <<'EOF'
 #!/bin/bash
 # DOOM engine wrapper script for DoomBox compatibility
 # Translates lzdoom/gzdoom arguments to dsda-doom compatible format
@@ -173,37 +154,34 @@ fi
 DOOM_CMD+=("${DOOM_ARGS[@]}")
 
 # Create logs directory if it doesn't exist
-mkdir -p /opt/doombox/logs
+mkdir -p "$(dirname "$0")/logs"
 
 # Log the command for debugging
-echo "$(date): DOOM Command: ${DOOM_CMD[*]}" >> /opt/doombox/logs/doom.log
+echo "$(date): DOOM Command: ${DOOM_CMD[*]}" >> "$(dirname "$0")/logs/doom.log"
 
 # Execute dsda-doom
 exec "${DOOM_CMD[@]}"
 EOF
 
-chmod +x /usr/local/bin/lzdoom
-echo -e "${GREEN}dsda-doom installed with lzdoom compatibility wrapper!${NC}"
+chmod +x "$DOOMBOX_DIR/lzdoom"
+echo -e "${GREEN}lzdoom compatibility wrapper created!${NC}"
 
 echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
 cd "$DOOMBOX_DIR"
 python3 -m venv venv
 source venv/bin/activate
 
-echo -e "${YELLOW}Installing Python dependencies with video support...${NC}"
+echo -e "${YELLOW}Installing Python dependencies...${NC}"
 pip install --upgrade pip
-cat >requirements.txt <<'EOF'
-flask==2.3.3
-qrcode[pil]==7.4.2
-pygame==2.5.2
-requests==2.31.0
-paho-mqtt==1.6.1
-pillow==10.0.1
-psutil==5.9.6
-opencv-python==4.8.1.78
-EOF
 
-pip install -r requirements.txt
+# Check if requirements.txt exists in the repo
+if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
+    echo -e "${YELLOW}Installing from requirements.txt...${NC}"
+    pip install -r "$SCRIPT_DIR/requirements.txt"
+else
+    echo -e "${YELLOW}Installing default Python packages...${NC}"
+    pip install pygame opencv-python numpy paho-mqtt requests
+fi
 
 echo -e "${YELLOW}Downloading DOOM.WAD...${NC}"
 cd "$DOOM_DIR"
@@ -217,168 +195,70 @@ fi
 echo -e "${YELLOW}Copying application files from repository...${NC}"
 cd "$DOOMBOX_DIR"
 
-# Check if we're running from within the repository
+# Copy main application files
 if [ -f "$SCRIPT_DIR/kiosk.py" ]; then
-    echo "Found kiosk.py in repository, copying files..."
-
-    # Copy main application files
+    echo "Copying kiosk.py..."
     cp "$SCRIPT_DIR/kiosk.py" ./
-    [ -f "$SCRIPT_DIR/config.py" ] && cp "$SCRIPT_DIR/config.py" ./
-    [ -f "$SCRIPT_DIR/webhook.py" ] && cp "$SCRIPT_DIR/webhook.py" ./
-
-    # Copy web form files if they exist
-    if [ -d "$SCRIPT_DIR/form" ]; then
-        cp -r "$SCRIPT_DIR/form" ./
-    elif [ -f "$SCRIPT_DIR/index.html" ]; then
-        mkdir -p form
-        cp "$SCRIPT_DIR/index.html" ./form/
-        [ -f "$SCRIPT_DIR/CNAME" ] && cp "$SCRIPT_DIR/CNAME" ./form/
-    fi
-
-    # Copy fonts
-    if [ -d "$SCRIPT_DIR/fonts" ]; then
-        echo -e "${YELLOW}Copying fonts...${NC}"
-        cp -r "$SCRIPT_DIR/fonts"/* "$FONTS_DIR/"
-        echo -e "${GREEN}✅ Fonts copied:${NC}"
-        ls -la "$FONTS_DIR/" | grep -E "\.(ttf|otf)$" | wc -l | xargs echo "   Font files:"
-    else
-        echo -e "${YELLOW}⚠️  No fonts directory found in repo${NC}"
-    fi
-
-    # Copy videos
-    if [ -d "$SCRIPT_DIR/vid" ]; then
-        echo -e "${YELLOW}Copying demo videos...${NC}"
-        cp -r "$SCRIPT_DIR/vid"/* "$VID_DIR/"
-        echo -e "${GREEN}✅ Demo videos copied:${NC}"
-        ls -la "$VID_DIR/" | grep -E "\.(mp4|avi|mov|mkv)$" | wc -l | xargs echo "   Video files:"
-
-        # Set proper permissions for video files
-        chmod 644 "$VID_DIR"/*.mp4 2>/dev/null || true
-    else
-        echo -e "${YELLOW}⚠️  No vid directory found in repo${NC}"
-    fi
-
-    # Copy images
-    if [ -d "$SCRIPT_DIR/img" ]; then
-        echo -e "${YELLOW}Copying image assets...${NC}"
-        cp -r "$SCRIPT_DIR/img"/* "$IMG_DIR/"
-        echo -e "${GREEN}✅ Image assets copied${NC}"
-    else
-        echo -e "${YELLOW}⚠️  No img directory found in repo${NC}"
-    fi
-
-    # Copy any additional assets
-    [ -f "$SCRIPT_DIR/lmao.gif" ] && cp "$SCRIPT_DIR/lmao.gif" ./
-    [ -f "$SCRIPT_DIR/formsubmit.jpg" ] && cp "$SCRIPT_DIR/formsubmit.jpg" ./
-
-    echo -e "${GREEN}Repository files copied successfully!${NC}"
 else
-    echo -e "${YELLOW}Repository files not found."
-    echo -e "Please ensure you're running setup.sh from the cloned repository directory.${NC}"
-    echo -e "${YELLOW}Creating minimal kiosk.py...${NC}"
-
-    # Create a minimal working kiosk if repo files aren't found
-    cat >kiosk.py <<'EOF'
-#!/usr/bin/env python3
-"""
-Minimal DoomBox Kiosk - Please replace with full version from repository
-"""
-import pygame
-import sys
-
-def main():
-    pygame.init()
-    screen = pygame.display.set_mode((1280, 960), pygame.FULLSCREEN)
-    pygame.display.set_caption("DoomBox - Missing Files")
-
-    font = pygame.font.Font(None, 48)
-    clock = pygame.time.Clock()
-
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-                pygame.quit()
-                sys.exit()
-
-        screen.fill((0, 0, 0))
-        text = font.render("DoomBox Setup Incomplete", True, (255, 0, 0))
-        text2 = font.render("Please copy files from repository", True, (255, 255, 255))
-        text3 = font.render("Press ESC to exit", True, (128, 128, 128))
-
-        screen.blit(text, (320, 400))
-        screen.blit(text2, (200, 450))
-        screen.blit(text3, (500, 500))
-
-        pygame.display.flip()
-        clock.tick(30)
-
-if __name__ == "__main__":
-    main()
-EOF
-    chmod +x kiosk.py
+    echo -e "${RED}kiosk.py not found in repository!${NC}"
+    exit 1
 fi
 
-echo -e "${YELLOW}Setting up Mosquitto MQTT broker...${NC}"
-systemctl enable mosquitto
-systemctl start mosquitto
+[ -f "$SCRIPT_DIR/config.py" ] && cp "$SCRIPT_DIR/config.py" ./
+[ -f "$SCRIPT_DIR/webhook.py" ] && cp "$SCRIPT_DIR/webhook.py" ./
 
-# Configure mosquitto for local access
-cat >/etc/mosquitto/conf.d/doombox.conf <<'EOF'
-# DoomBox MQTT Configuration
-listener 1883 localhost
-allow_anonymous true
-EOF
+# Copy web form files if they exist
+if [ -d "$SCRIPT_DIR/form" ]; then
+    cp -r "$SCRIPT_DIR/form" ./
+elif [ -f "$SCRIPT_DIR/index.html" ]; then
+    mkdir -p form
+    cp "$SCRIPT_DIR/index.html" ./form/
+    [ -f "$SCRIPT_DIR/CNAME" ] && cp "$SCRIPT_DIR/CNAME" ./form/
+fi
 
-systemctl restart mosquitto
+# Copy fonts
+if [ -d "$SCRIPT_DIR/fonts" ]; then
+    echo -e "${YELLOW}Copying fonts...${NC}"
+    cp -r "$SCRIPT_DIR/fonts"/* "$FONTS_DIR/"
+    echo -e "${GREEN}✅ Fonts copied:${NC}"
+    ls -la "$FONTS_DIR/" | grep -E "\.(ttf|otf)$" | wc -l | xargs echo "   Font files:"
+else
+    echo -e "${YELLOW}⚠️  No fonts directory found in repo${NC}"
+fi
 
-echo -e "${YELLOW}Creating systemd service...${NC}"
-cat >/etc/systemd/system/doombox.service <<'EOF'
-[Unit]
-Description=shmegl's DoomBox Kiosk
-After=multi-user.target graphical.target mosquitto.service
-Wants=graphical.target
-Requires=mosquitto.service
+# Copy videos
+if [ -d "$SCRIPT_DIR/vid" ]; then
+    echo -e "${YELLOW}Copying demo videos...${NC}"
+    cp -r "$SCRIPT_DIR/vid"/* "$VID_DIR/"
+    echo -e "${GREEN}✅ Demo videos copied:${NC}"
+    ls -la "$VID_DIR/" | grep -E "\.(mp4|avi|mov|mkv)$" | wc -l | xargs echo "   Video files:"
+else
+    echo -e "${YELLOW}⚠️  No vid directory found in repo${NC}"
+fi
 
-[Service]
-Type=simple
-User=root
-Group=root
-WorkingDirectory=/opt/doombox
-ExecStart=/opt/doombox/start.sh
-Restart=always
-RestartSec=5
-Environment=HOME=/root
-Environment=DISPLAY=:0
+# Copy images
+if [ -d "$SCRIPT_DIR/img" ]; then
+    echo -e "${YELLOW}Copying image assets...${NC}"
+    cp -r "$SCRIPT_DIR/img"/* "$IMG_DIR/"
+    echo -e "${GREEN}✅ Image assets copied${NC}"
+else
+    echo -e "${YELLOW}⚠️  No img directory found in repo${NC}"
+fi
 
-[Install]
-WantedBy=graphical.target
-EOF
-
-echo -e "${YELLOW}Creating startup scripts...${NC}"
+echo -e "${GREEN}Repository files copied successfully!${NC}" echo -e "${YELLOW}Creating startup scripts...${NC}"
 cat >"$DOOMBOX_DIR/start.sh" <<'EOF'
 #!/bin/bash
 # DoomBox Kiosk Startup Script
 
-# Ensure we're in the right directory
-cd /opt/doombox
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+cd "$SCRIPT_DIR"
 
 # Activate Python virtual environment
 source venv/bin/activate
 
-# Set display
-export DISPLAY=:0
-
-# Wait for display to be ready
-timeout=30
-while [ $timeout -gt 0 ]; do
-    if xset q &>/dev/null; then
-        echo "Display ready"
-        break
-    fi
-    echo "Waiting for display... ($timeout)"
-    sleep 1
-    ((timeout--))
-done
+# Set display if not set
+export DISPLAY=${DISPLAY:-:0}
 
 # Start the kiosk application
 echo "Starting DoomBox Kiosk..."
@@ -387,11 +267,15 @@ EOF
 
 chmod +x "$DOOMBOX_DIR/start.sh"
 
-cat >"$DOOMBOX_DIR/start_x_display.sh" <<'EOF'
+cat >"$DOOMBOX_DIR/start_with_x.sh" <<'EOF'
 #!/bin/bash
 # Start X server and DoomBox kiosk
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+cd "$SCRIPT_DIR"
+
 export DISPLAY=:0
-cd /opt/doombox
 
 # Start X server in background if not running
 if ! xset q &>/dev/null; then
@@ -416,57 +300,39 @@ fi
 xset s off
 xset -dpms
 xset s noblank
-unclutter -idle 1 -root &
+unclutter -idle 1 -root &>/dev/null &
 
 # Start the kiosk
 ./start.sh
 EOF
 
-chmod +x "$DOOMBOX_DIR/start_x_display.sh"
+chmod +x "$DOOMBOX_DIR/start_with_x.sh"
 
 # Helper scripts for testing
 cat >"$DOOMBOX_DIR/test_kiosk.sh" <<'EOF'
 #!/bin/bash
-cd /opt/doombox
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+cd "$SCRIPT_DIR"
 source venv/bin/activate
-export DISPLAY=:0
+export DISPLAY=${DISPLAY:-:0}
 echo "Testing DoomBox Kiosk..."
 python kiosk.py
 EOF
 
 cat >"$DOOMBOX_DIR/test_dsda_doom.sh" <<'EOF'
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 echo "Testing dsda-doom directly..."
-cd /opt/doombox/doom
+cd "$SCRIPT_DIR/doom"
 dsda-doom -iwad DOOM.WAD
 EOF
 
 cat >"$DOOMBOX_DIR/test_doom.sh" <<'EOF'
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 echo "Testing DOOM via lzdoom wrapper..."
-cd /opt/doombox/doom
-/usr/local/bin/lzdoom -iwad DOOM.WAD
-EOF
-
-cat >"$DOOMBOX_DIR/pair_controller.sh" <<'EOF'
-#!/bin/bash
-echo "Starting Bluetooth controller pairing..."
-echo "Put your DualShock 4 in pairing mode (hold Share + PS buttons)"
-echo "Press Ctrl+C to exit"
-
-# Enable bluetooth
-systemctl start bluetooth
-bluetoothctl power on
-bluetoothctl agent on
-bluetoothctl default-agent
-bluetoothctl scan on
-
-echo "Bluetooth scanning started. Look for your controller and use:"
-echo "bluetoothctl pair [MAC_ADDRESS]"
-echo "bluetoothctl trust [MAC_ADDRESS]"
-echo "bluetoothctl connect [MAC_ADDRESS]"
-
-bluetoothctl
+cd "$SCRIPT_DIR/doom"
+"$SCRIPT_DIR/lzdoom" -iwad DOOM.WAD
 EOF
 
 cat >"$DOOMBOX_DIR/debug_controller.sh" <<'EOF'
@@ -480,11 +346,11 @@ ls /dev/input/js* 2>/dev/null || echo "No joystick devices found"
 
 # Check bluetooth status
 echo -e "\nBluetooth status:"
-systemctl is-active bluetooth
+systemctl is-active bluetooth 2>/dev/null || echo "Bluetooth service not available"
 
 # List connected devices
 echo -e "\nConnected bluetooth devices:"
-bluetoothctl devices Connected
+bluetoothctl devices Connected 2>/dev/null || echo "bluetoothctl not available"
 
 # Test joystick if available
 if ls /dev/input/js* &>/dev/null; then
@@ -493,7 +359,8 @@ if ls /dev/input/js* &>/dev/null; then
 fi
 
 echo -e "\nPython pygame joystick test:"
-cd /opt/doombox
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+cd "$SCRIPT_DIR"
 source venv/bin/activate
 python3 -c "
 import pygame
@@ -514,7 +381,8 @@ cat >"$DOOMBOX_DIR/view_scores.sh" <<'EOF'
 #!/bin/bash
 echo "DoomBox High Scores"
 echo "===================="
-cd /opt/doombox
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+cd "$SCRIPT_DIR"
 
 if [ -f scores.db ]; then
     sqlite3 scores.db "SELECT
@@ -531,103 +399,8 @@ else
 fi
 EOF
 
-cat >"$DOOMBOX_DIR/start_kiosk_service.sh" <<'EOF'
-#!/bin/bash
-echo "Starting DoomBox Service..."
-systemctl start doombox
-systemctl status doombox
-echo "To view logs: journalctl -u doombox -f"
-EOF
-
-cat >"$DOOMBOX_DIR/stop_kiosk_service.sh" <<'EOF'
-#!/bin/bash
-echo "Stopping DoomBox Service..."
-systemctl stop doombox
-systemctl status doombox
-EOF
-
 # Make all scripts executable
 chmod +x "$DOOMBOX_DIR"/*.sh
-
-echo -e "${YELLOW}Creating XFCE desktop entries...${NC}"
-
-# Define desktop entries for XFCE Applications Menu
-DESKTOP_ENTRIES=(
-    "doombox-kiosk.desktop:DoomBox Kiosk:Main kiosk application:/opt/doombox/test_kiosk.sh:application-x-addon:false:AudioVideo;Game"
-    "doombox-test-doom-wrapper.desktop:Test DOOM (Wrapper):Test DOOM via lzdoom wrapper:/opt/doombox/test_doom.sh:applications-games:true:Game"
-    "doombox-test-dsda-doom.desktop:Test dsda-doom (Direct):Test dsda-doom directly:/opt/doombox/test_dsda_doom.sh:applications-games:true:Game"
-    "doombox-debug-controller.desktop:Debug Controller:Test controller input:/opt/doombox/debug_controller.sh:input-gaming:true:System;HardwareSettings"
-    "doombox-pair-controller.desktop:Pair Controller:Bluetooth pairing helper:/opt/doombox/pair_controller.sh:bluetooth:true:System;HardwareSettings"
-    "doombox-view-scores.desktop:View High Scores:Database viewer:/opt/doombox/view_scores.sh:trophy-gold:true:Game;Database"
-    "doombox-start-service.desktop:Start Kiosk Service:Start the kiosk service:/opt/doombox/start_kiosk_service.sh:media-playback-start:true:System"
-    "doombox-stop-service.desktop:Stop Kiosk Service:Stop the kiosk service:/opt/doombox/stop_kiosk_service.sh:media-playback-stop:true:System"
-    "doombox-start-display.desktop:Start X Display:X11 startup helper:/opt/doombox/start_x_display.sh:video-display:true:System"
-)
-
-# Function to create desktop entry
-create_desktop_entry() {
-    local filename="$1"
-    local name="$2"
-    local comment="$3"
-    local exec="$4"
-    local icon="$5"
-    local terminal="$6"
-    local categories="$7"
-
-    cat >"/usr/share/applications/$filename" <<EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=$name
-Comment=$comment
-Exec=$exec
-Icon=$icon
-Terminal=$terminal
-Categories=$categories
-EOF
-}
-
-# Create all desktop entries
-for entry in "${DESKTOP_ENTRIES[@]}"; do
-    IFS=':' read -r filename name comment exec icon terminal categories <<<"$entry"
-    create_desktop_entry "$filename" "$name" "$comment" "$exec" "$icon" "$terminal" "$categories"
-    echo "Created desktop entry: $name"
-done
-
-echo -e "${YELLOW}Updating desktop database...${NC}"
-update-desktop-database /usr/share/applications
-
-echo -e "${YELLOW}Setting up XFCE auto-start...${NC}"
-mkdir -p /etc/xdg/autostart
-cat >/etc/xdg/autostart/doombox-kiosk.desktop <<'EOF'
-[Desktop Entry]
-Type=Application
-Name=DoomBox Kiosk
-Comment=Auto-start DoomBox kiosk application
-Exec=/opt/doombox/start.sh
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-
-echo -e "${YELLOW}Setting up auto-login for root user...${NC}"
-# Configure auto-login for DietPi/Debian
-mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat >/etc/systemd/system/getty@tty1.service.d/override.conf <<'EOF'
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
-EOF
-
-echo -e "${YELLOW}Setting permissions...${NC}"
-chown -R root:root "$DOOMBOX_DIR"
-chmod -R 755 "$DOOMBOX_DIR"
-
-# Make sure scripts are executable
-find "$DOOMBOX_DIR" -name "*.sh" -exec chmod +x {} \;
-
-echo -e "${YELLOW}Reloading systemd and enabling services...${NC}"
-systemctl daemon-reload
 
 # Asset summary
 echo -e "${YELLOW}Asset Summary:${NC}"
@@ -642,43 +415,37 @@ echo -e "Images: $IMG_COUNT files"
 echo -e "${GREEN}=========================================="
 echo -e "  DoomBox Setup Complete!"
 echo -e "=========================================="
-echo -e "Repository files: ${GREEN}$([ -f "$SCRIPT_DIR/kiosk.py" ] && echo "✓ Found and copied" || echo "✗ Not found")${NC}"
+echo -e "Application built in: ${YELLOW}$DOOMBOX_DIR${NC}"
 echo -e ""
 echo -e "Assets loaded:"
 echo -e "• Video backgrounds ($VIDEO_COUNT videos)"
 echo -e "• Custom fonts ($FONT_COUNT fonts)"
 echo -e "• Image assets ($IMG_COUNT images)"
 echo -e ""
-echo -e "Next steps:"
-echo -e "1. ${YELLOW}Start X11 display server:${NC}"
-echo -e "   /opt/doombox/start_x_display.sh"
+echo -e "To run DoomBox:"
+echo -e "1. ${YELLOW}Test the kiosk:${NC}"
+echo -e "   cd $DOOMBOX_DIR && ./test_kiosk.sh"
 echo -e ""
-echo -e "2. ${YELLOW}Test components:${NC}"
-echo -e "   - Test kiosk: /opt/doombox/test_kiosk.sh"
-echo -e "   - Test DOOM: /opt/doombox/test_doom.sh"
+echo -e "2. ${YELLOW}Test DOOM engine:${NC}"
+echo -e "   cd $DOOMBOX_DIR && ./test_doom.sh"
 echo -e ""
-echo -e "3. ${YELLOW}Pair your DualShock 4 controller:${NC}"
-echo -e "   /opt/doombox/pair_controller.sh"
+echo -e "3. ${YELLOW}Start with X server:${NC}"
+echo -e "   cd $DOOMBOX_DIR && ./start_with_x.sh"
 echo -e ""
-echo -e "4. ${YELLOW}Start the service:${NC}"
-echo -e "   /opt/doombox/start_kiosk_service.sh"
+echo -e "4. ${YELLOW}Test controller:${NC}"
+echo -e "   cd $DOOMBOX_DIR && ./debug_controller.sh"
 echo -e ""
-echo -e "5. ${YELLOW}For auto-boot kiosk mode:${NC}"
-echo -e "   systemctl set-default multi-user.target"
-echo -e "   systemctl enable doombox.service"
+echo -e "Available scripts in $DOOMBOX_DIR:"
+echo -e "• start.sh - Main kiosk launcher"
+echo -e "• start_with_x.sh - Start with X server"
+echo -e "• test_kiosk.sh - Test kiosk application"
+echo -e "• test_doom.sh - Test DOOM engine"
+echo -e "• debug_controller.sh - Controller debugging"
+echo -e "• view_scores.sh - View high scores"
 echo -e ""
-echo -e "Files created in: $DOOMBOX_DIR"
-echo -e "DOOM.WAD location: $DOOM_DIR/DOOM.WAD"
-echo -e "Logs directory: $LOGS_DIR"
-echo -e "Fonts: $FONTS_DIR ($FONT_COUNT fonts)"
-echo -e "Demo videos: $VID_DIR ($VIDEO_COUNT videos)"
+echo -e "DOOM files:"
+echo -e "• DOOM.WAD location: $DOOM_DIR/DOOM.WAD"
+echo -e "• DOOM wrapper: $DOOMBOX_DIR/lzdoom"
 echo -e ""
-echo -e "${YELLOW}XFCE Applications Menu -> DoomBox${NC} for all tools"
+echo -e "${GREEN}Ready to play!${NC}"
 echo -e "${NC}"
-
-# Final check
-if [ -f "$DOOMBOX_DIR/kiosk.py" ] && [ -s "$DOOMBOX_DIR/kiosk.py" ]; then
-    echo -e "${GREEN}✓ Kiosk application ready${NC}"
-else
-    echo -e "${RED}✗ Kiosk application needs manual copy from repository${NC}"
-fi
