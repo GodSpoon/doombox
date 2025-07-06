@@ -8,7 +8,7 @@ set -e
 
 echo "=========================================="
 echo "  shmegl's DoomBox Setup"
-echo "  Highest score gets a free tattoo!"
+echo "  femboy powered        "
 echo "=========================================="
 
 # Colors for output
@@ -51,16 +51,36 @@ apt install -y \
     feh \
     mosquitto-clients \
     sqlite3 \
-    prboom-plus
+    dsda-doom \
+    doom-wad-shareware
 
-echo -e "${YELLOW}Installing PrBoom-Plus DOOM engine...${NC}"
-echo "PrBoom-Plus already installed via package manager."
+echo -e "${YELLOW}Installing DOOM engine...${NC}"
+# Check which DOOM engine is available and create appropriate wrapper
+if command -v dsda-doom &> /dev/null; then
+    DOOM_ENGINE="dsda-doom"
+    echo "Found dsda-doom engine"
+elif [ -f "/usr/games/dsda-doom" ]; then
+    DOOM_ENGINE="/usr/games/dsda-doom"
+    echo "Found dsda-doom in /usr/games/"
+elif [ -f "/usr/games/doom" ]; then
+    DOOM_ENGINE="/usr/games/doom"
+    echo "Found doom in /usr/games/"
+elif command -v prboom-plus &> /dev/null; then
+    DOOM_ENGINE="prboom-plus"
+    echo "Found prboom-plus engine"
+else
+    echo "No DOOM engine found, installing additional packages..."
+    apt install -y prboom-plus
+    DOOM_ENGINE="prboom-plus"
+fi
+
+echo "Using DOOM engine: $DOOM_ENGINE"
 
 # Create lzdoom wrapper script for compatibility
 echo "Creating lzdoom compatibility wrapper..."
-cat > /usr/local/bin/lzdoom << 'EOF'
+cat > /usr/local/bin/lzdoom << EOF
 #!/bin/bash
-# PrBoom-Plus wrapper script for DoomBox compatibility
+# DOOM engine wrapper script for DoomBox compatibility
 DOOM_ARGS=()
 IWAD_PATH=""
 PLAYER_NAME=""
@@ -68,19 +88,19 @@ WIDTH="640"
 HEIGHT="480"
 FULLSCREEN=false
 
-# Parse arguments to convert lzdoom/gzdoom style to prboom-plus
-while [[ $# -gt 0 ]]; do
-    case $1 in
+# Parse arguments to convert lzdoom/gzdoom style to our DOOM engine
+while [[ \$# -gt 0 ]]; do
+    case \$1 in
         -iwad)
-            IWAD_PATH="$2"
+            IWAD_PATH="\$2"
             shift 2
             ;;
         -width)
-            WIDTH="$2"
+            WIDTH="\$2"
             shift 2
             ;;
         -height)
-            HEIGHT="$2"
+            HEIGHT="\$2"
             shift 2
             ;;
         -fullscreen)
@@ -88,44 +108,47 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         +name)
-            PLAYER_NAME="$2"
+            PLAYER_NAME="\$2"
             shift 2
             ;;
         *)
             # Pass through other arguments
-            DOOM_ARGS+=("$1")
+            DOOM_ARGS+=("\$1")
             shift
             ;;
     esac
 done
 
-# Build PrBoom-Plus command
-PRBOOM_CMD=(prboom-plus)
+# Build DOOM command
+DOOM_CMD=($DOOM_ENGINE)
 
-if [ -n "$IWAD_PATH" ]; then
-    PRBOOM_CMD+=(-iwad "$IWAD_PATH")
+if [ -n "\$IWAD_PATH" ]; then
+    DOOM_CMD+=(-iwad "\$IWAD_PATH")
 fi
 
 # Set resolution
-PRBOOM_CMD+=(-width "$WIDTH" -height "$HEIGHT")
+DOOM_CMD+=(-width "\$WIDTH" -height "\$HEIGHT")
 
 # Set fullscreen mode
-if [ "$FULLSCREEN" = true ]; then
-    PRBOOM_CMD+=(-fullscreen)
+if [ "\$FULLSCREEN" = true ]; then
+    DOOM_CMD+=(-fullscreen)
 fi
 
 # Add any additional arguments
-PRBOOM_CMD+=("${DOOM_ARGS[@]}")
+DOOM_CMD+=("\${DOOM_ARGS[@]}")
+
+# Create logs directory if it doesn't exist
+mkdir -p /opt/doombox/logs
 
 # Log the command for debugging
-echo "DOOM Command: ${PRBOOM_CMD[*]}" >> /opt/doombox/logs/doom.log
+echo "\$(date): DOOM Command: \${DOOM_CMD[*]}" >> /opt/doombox/logs/doom.log
 
-# Execute PrBoom-Plus
-exec "${PRBOOM_CMD[@]}"
+# Execute DOOM engine
+exec "\${DOOM_CMD[@]}"
 EOF
 
 chmod +x /usr/local/bin/lzdoom
-echo -e "${GREEN}PrBoom-Plus installed with lzdoom compatibility wrapper!${NC}"
+echo -e "${GREEN}DOOM engine installed with lzdoom compatibility wrapper!${NC}"
 
 echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
 cd "$DOOMBOX_DIR"
@@ -195,6 +218,7 @@ class DoomBoxKiosk:
         self.RED = (255, 0, 0)
         self.GREEN = (0, 255, 0)
         self.BLUE = (0, 0, 255)
+        self.YELLOW = (255, 255, 0)
         
         # Paths
         self.base_dir = "/opt/doombox"
@@ -202,29 +226,7 @@ class DoomBoxKiosk:
         self.db_path = f"{self.base_dir}/scores.db"
         
         # Game state
-        self.current_player = echo -e "${GREEN}=========================================="
-echo -e "  DoomBox Setup Complete!"
-echo -e "=========================================="
-echo -e "Files created in: $DOOMBOX_DIR"
-echo -e "DOOM engine: PrBoom-Plus with lzdoom compatibility wrapper"
-echo -e "Wrapper script: /usr/local/bin/lzdoom"
-echo -e ""
-echo -e "Next steps:"
-echo -e "1. Update the QR code URL in kiosk.py"
-echo -e "2. Pair your DualShock 4 controller:"
-echo -e "   ${DOOMBOX_DIR}/pair_controller.sh"
-echo -e "3. Test DOOM engine: ${DOOMBOX_DIR}/test_doom.sh"
-echo -e "4. Test kiosk: ${DOOMBOX_DIR}/test_kiosk.sh"
-echo -e "5. Enable auto-start: systemctl enable doombox"
-echo -e "6. Reboot to start kiosk automatically"
-echo -e ""
-echo -e "The kiosk will auto-start on boot with systemd."
-echo -e "Use 'systemctl status doombox' to check status."
-echo -e "Use Konami code on controller for test games!"
-echo -e ""
-echo -e "${GREEN}✅ PrBoom-Plus installed successfully!${NC}"
-echo -e "${GREEN}✅ Fast, lightweight, and ARM-optimized!${NC}"
-echo -e "${NC}"
+        self.current_player = None
         self.game_running = False
         
         # Controller
@@ -589,31 +591,6 @@ EOF
 
 chmod +x "$DOOMBOX_DIR/start.sh"
 
-echo -e "${YELLOW}Setting up Bluetooth for DualShock 4...${NC}"
-# Enable Bluetooth service
-systemctl enable bluetooth
-systemctl start bluetooth
-
-# Add controller pairing script
-cat > "$DOOMBOX_DIR/pair_controller.sh" << 'EOF'
-#!/bin/bash
-echo "Put DualShock 4 in pairing mode (hold Share + PS buttons)"
-echo "Press Enter when ready..."
-read
-
-# Scan for devices
-timeout 10 bluetoothctl scan on
-
-# You'll need to manually pair the controller
-echo "Run 'bluetoothctl' and use these commands:"
-echo "  scan on"
-echo "  pair [MAC_ADDRESS]"
-echo "  trust [MAC_ADDRESS]"
-echo "  connect [MAC_ADDRESS]"
-EOF
-
-chmod +x "$DOOMBOX_DIR/pair_controller.sh"
-
 echo -e "${YELLOW}Setting up auto-start configuration...${NC}"
 # For DietPi, we'll use systemd service to start the kiosk
 # The service will handle starting X and the application
@@ -643,6 +620,31 @@ EOF
 
 chmod +x "$DOOMBOX_DIR/start_x.sh"
 
+echo -e "${YELLOW}Setting up Bluetooth for DualShock 4...${NC}"
+# Enable Bluetooth service
+systemctl enable bluetooth
+systemctl start bluetooth
+
+# Add controller pairing script
+cat > "$DOOMBOX_DIR/pair_controller.sh" << 'EOF'
+#!/bin/bash
+echo "Put DualShock 4 in pairing mode (hold Share + PS buttons)"
+echo "Press Enter when ready..."
+read
+
+# Scan for devices
+timeout 10 bluetoothctl scan on
+
+# You'll need to manually pair the controller
+echo "Run 'bluetoothctl' and use these commands:"
+echo "  scan on"
+echo "  pair [MAC_ADDRESS]"
+echo "  trust [MAC_ADDRESS]"
+echo "  connect [MAC_ADDRESS]"
+EOF
+
+chmod +x "$DOOMBOX_DIR/pair_controller.sh"
+
 echo -e "${YELLOW}Creating test scripts...${NC}"
 cat > "$DOOMBOX_DIR/test_doom.sh" << 'EOF'
 #!/bin/bash
@@ -661,5 +663,14 @@ EOF
 
 chmod +x "$DOOMBOX_DIR/test_kiosk.sh"
 
-echo -e "${YELLOW}Setting permissions...${NC}"
-chown -R root:
+echo -e "${YELLOW}Creating desktop entries for test scripts...${NC}"
+mkdir -p /usr/share/applications
+
+cat > /usr/share/applications/doombox-test-doom.desktop << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=DoomBox - Test DOOM
+Comment=Test the DOOM engine directly
+Exec=/opt/doombox/test_doom.sh
+Icon=applications-games
