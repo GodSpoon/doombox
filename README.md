@@ -72,17 +72,20 @@ The setup script will:
 ### 5. Pair Your DualShock 4 Controller
 
 ```bash
-/opt/doombox/pair_controller.sh
+# Use the new consolidated controller management script
+./scripts/controller-manager.sh scan
+./scripts/controller-manager.sh pair MAC_ADDRESS
+./scripts/controller-manager.sh auto-connect
 ```
 
 ### 6. Configure Your Web Form URL
 
-Edit the QR code URL in `/opt/doombox/kiosk.py`:
+Edit the QR code URL in `/opt/doombox/src/kiosk-manager.py`:
 ```python
 self.form_url = "https://your-username.github.io/doombox-form/"
 ```
 
-Or update the configuration in `/opt/doombox/config.py`:
+Or update the configuration in `/opt/doombox/config/config.py`:
 ```python
 GITHUB_FORM_URL = "https://your-username.github.io/doombox-form/"
 ```
@@ -120,255 +123,134 @@ sudo systemctl start doombox.service
 - MQTT support for remote game triggers
 - Webhook/API integration ready
 
+---
+
+## Controller Management
+
+### Overview
+The DoomBox uses a DualShock 4 controller with advanced pairing and connection management. The system supports both Bluetooth and wired connections with automatic reconnection.
+
+### Quick Controller Setup
+```bash
+# Scan for controllers
+./scripts/controller-manager.sh scan
+
+# Pair a specific controller
+./scripts/controller-manager.sh pair MAC_ADDRESS
+
+# Auto-connect to saved controller
+./scripts/controller-manager.sh auto-connect
+
+# Check controller status
+./scripts/controller-manager.sh status
+
+# Test controller input
+./scripts/controller-manager.sh test
+```
+
+### Controller Features
+- **Konami Code Support**: ↑↑↓↓←→←→BA triggers test mode
+- **Auto-reconnection**: Automatically connects to paired controllers on startup
+- **Multiple pairing methods**: 5 different approaches for difficult-to-pair controllers
+- **Bluetooth stack reset**: Automatically resets Bluetooth when needed
+- **MAC address detection**: Recognizes DualShock 4 controllers by hardware signatures
+
+### Troubleshooting Controllers
+1. **Controller not found during scan**:
+   - Ensure controller is in pairing mode (hold PS + Share for 3-5 seconds)
+   - Controller light should flash white
+   - Try resetting controller (small button on back)
+
+2. **Controller found but won't pair**:
+   - Run `./scripts/controller-manager.sh setup` to install dependencies
+   - Try different pairing methods (script tries multiple approaches automatically)
+   - Check Bluetooth service: `systemctl status bluetooth`
+
+3. **Controller disconnects frequently**:
+   - Check battery level
+   - Ensure controller is "trusted": the pairing script handles this automatically
+   - Try wired connection for debugging
+
+### Supported Controllers
+- DualShock 4 (all variants)
+- Sony Interactive Entertainment Wireless Controller
+- Compatible with MAC prefixes: 00:1B:DC, A0:AB:51, 00:26:43, 20:50:E7, 00:1E:3D
+
+---
+
 ## File Structure
 
 ```
-/opt/doombox/
-├── kiosk.py              # Main application (copied from repo)
-├── config.py             # Configuration file (copied from repo)
-├── webhook.py            # Webhook bridge (copied from repo)
-├── venv/                 # Python virtual environment
-├── doom/
-│   └── DOOM.WAD         # Game data (downloaded)
-├── form/                 # Web form files (copied from repo)
-│   ├── index.html
-│   └── CNAME
-├── logs/                # Application logs
-├── scores.db            # SQLite score database
-├── start.sh             # Startup script
-├── start_x_display.sh   # X11 startup helper
-├── test_doom.sh         # Test DOOM directly
-├── test_kiosk.sh        # Test kiosk application
-└── pair_controller.sh   # Controller pairing helper
-```
-
-## Configuration
-
-### Display Settings
-- **Kiosk Resolution**: 1280x960
-- **DOOM Resolution**: 640x480 (scaled up)
-- **Fullscreen Mode**: Enabled by default
-
-### Database Schema
-```sql
-CREATE TABLE scores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    player_name TEXT NOT NULL,
-    score INTEGER NOT NULL,
-    timestamp DATETIME NOT NULL,
-    level_reached INTEGER DEFAULT 1,
-    time_played INTEGER DEFAULT 0
-);
-```
-
-## Usage
-
-### Normal Operation
-1. System boots and displays QR code + leaderboard
-2. Users scan QR code and fill out web form
-3. Form submission triggers game start via MQTT/webhook
-4. Player plays DOOM, score is automatically recorded
-5. Updated leaderboard displays after game ends
-
-### Test Mode
-- Use Konami code on controller: `↑↑↓↓←→←→BA`
-- Or run: `/opt/doombox/test_doom.sh`
-- Test games don't affect the leaderboard
-
-### Manual Control
-```bash
-# Start kiosk manually
-sudo /opt/doombox/test_kiosk.sh
-
-# Check service status
-sudo systemctl status doombox
-
-# View logs
-sudo journalctl -u doombox -f
-
-# Restart service
-sudo systemctl restart doombox
-
-# View scores
-/opt/doombox/view_scores.sh
-```
-
-## XFCE Desktop Integration
-
-After setup, you'll find a "DoomBox" category in the XFCE Applications Menu with these tools:
-
-- **DoomBox Kiosk** - Main kiosk application
-- **Test DOOM (Wrapper)** - Test DOOM via lzdoom wrapper
-- **Test dsda-doom (Direct)** - Test dsda-doom directly
-- **Debug Controller** - Test controller input
-- **Pair Controller** - Bluetooth pairing helper
-- **View High Scores** - Database viewer
-- **Start/Stop Kiosk Service** - Service management
-- **Start X Display** - X11 startup helper
-
-## Web Form Integration
-
-### GitHub Pages Setup
-1. The `index.html` file is copied to `/opt/doombox/form/`
-2. Deploy this to GitHub Pages
-3. Update the QR code URL in the kiosk configuration
-4. Form submissions trigger the kiosk via MQTT or webhook
-
-### MQTT Integration
-The kiosk listens on `doombox/start_game` topic:
-```json
-{
-  "player_name": "PlayerName"
-}
-```
-
-### Webhook Integration
-Create a file at `/opt/doombox/new_player.json`:
-```json
-{
-  "player_name": "PlayerName"
-}
-```
-
-## Troubleshooting
-
-### Setup Issues
-```bash
-# Check if all files were copied properly
-ls -la /opt/doombox/
-# Should show kiosk.py, config.py, etc.
-
-# Verify X11 is running
-export DISPLAY=:0
-xset q
-
-# Check services
-systemctl status bluetooth
-systemctl status mosquitto
-systemctl status doombox
-```
-
-### Controller Issues
-```bash
-# Check if controller is detected
-ls /dev/input/js*
-
-# Test controller input
-jstest /dev/input/js0
-
-# Debug controller
-/opt/doombox/debug_controller.sh
-
-# Bluetooth status
-sudo systemctl status bluetooth
-```
-
-### DOOM Issues
-```bash
-# Test dsda-doom directly
-cd /opt/doombox/doom
-dsda-doom -iwad DOOM.WAD
-
-# Test wrapper
-/usr/local/bin/lzdoom -iwad /opt/doombox/doom/DOOM.WAD
-
-# Check installation
-which dsda-doom
-```
-
-### Display Issues
-```bash
-# Check current resolution
-xrandr
-
-# Start X server manually
-/opt/doombox/start_x_display.sh
-
-# Test different resolution
-xrandr --output HDMI-1 --mode 1280x960
-```
-
-## Auto-Boot Kiosk Mode
-
-For production deployment:
-
-```bash
-# Set to boot to console (no desktop)
-sudo systemctl set-default multi-user.target
-
-# Enable auto-start of kiosk
-sudo systemctl enable doombox.service
-
-# Reboot to test
-sudo reboot
-```
-
-## Development
-
-### Repository Structure
-```
 doombox/
-├── kiosk.py              # Main kiosk application
-├── config.py             # Configuration settings
-├── webhook.py            # Webhook bridge server
-├── setup.sh              # Installation script
-├── index.html            # Web registration form
-├── CNAME                 # GitHub Pages domain
-├── README.md             # This file
-├── lmao.gif              # Floating animation
-└── formsubmit.jpg        # Form submission image
+├── README.md                    # This file
+├── setup.sh                    # Main installation script
+├── uninstall.sh                # Clean removal script
+├── requirements.txt            # Python dependencies
+├── src/                        # Core application files
+│   ├── kiosk-manager.py        # Main kiosk controller
+│   ├── controller-input.py     # DualShock 4 input handling
+│   └── webhook.py              # API/webhook listener
+├── config/                     # Configuration files
+│   └── config.py               # Main configuration
+├── scripts/                    # System scripts
+│   ├── controller-manager.sh   # Controller management
+│   └── test-suite.sh          # Comprehensive tests
+├── web/                        # Web interface
+│   └── index.html             # Form page
+├── assets/                     # Static assets
+│   ├── fonts/                 # Font files
+│   ├── icons/                 # Icon library
+│   └── vid/                   # Demo videos
+├── logs/                       # Application logs
+└── .github/                    # GitHub configuration
+    └── instructions/           # Development guidelines
 ```
-
-### Making Changes
-1. Edit files in the repository
-2. Copy changes to `/opt/doombox/` or re-run setup
-3. Restart the kiosk service
-
-## Security Notes
-
-⚠️ **This setup runs as root for simplicity**
-
-For production use, consider:
-- Creating a dedicated user account
-- Implementing proper file permissions
-- Using systemd user services
-- Sandboxing the DOOM process
-
-## Customization
-
-### Changing Colors/Theme
-Edit the color constants in `config.py` or `kiosk.py`:
-```python
-COLORS = {
-    'BLACK': (0, 0, 0),
-    'WHITE': (255, 255, 255),
-    'RED': (255, 0, 0),
-    # ... etc
-}
-```
-
-### Adding Custom DOOM Mods
-1. Place mod files in `/opt/doombox/doom/`
-2. Update the DOOM command in `config.py`
-3. Add `-file modname.wad` parameter
-
-### Customizing Score Display
-Modify the `draw_screen()` method in `kiosk.py` to change:
-- Number of scores shown
-- Score formatting
-- Display layout
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Credits
-
-- **Hardware**: Radxa Zero
-- **Game**: DOOM (id Software)
-- **Engine**: dsda-doom
-- **Inspired by**: Classic arcade cabinets
 
 ---
+
+## Development Log
+
+### 2025-07-06: Codebase Consolidation & Cleanup
+- **Goal**: Reorganize codebase according to project instructions
+- **Actions**:
+  - Consolidated 8+ controller scripts into single `controller-input.py` module
+  - Moved files to proper directory structure (src/, config/, scripts/, web/, assets/)
+  - Removed redundant README files (merged into main README.md)
+  - Created unified `controller-manager.sh` script
+  - Implemented comprehensive `test-suite.sh` for validation
+  - Updated file naming to follow kebab-case convention
+  
+- **Files Consolidated**:
+  - `advanced_controller_pair.py` + `pair_controller.sh` + `debug_controller.sh` + others → `src/controller-input.py`
+  - `kiosk.py` → `src/kiosk-manager.py`
+  - `config.py` → `config/config.py`
+  - `index.html` → `web/index.html`
+  - Multiple controller scripts → `scripts/controller-manager.sh`
+  - `test_advanced_controller.sh` → `scripts/test-suite.sh`
+
+- **Files Removed** (to be cleaned up):
+  - `ADVANCED_CONTROLLER_README.md`
+  - `ADVANCED_CONTROLLER_SUMMARY.md`  
+  - `CONTROLLER_README.md`
+  - `advanced_controller_pair.py`
+  - `advanced_controller_pair.sh`
+  - `pair_controller.sh`
+  - `debug_controller.sh`
+  - `controller_overview.sh`
+  - `setup_controller.sh`
+  - `test_advanced_controller.sh`
+  - `auto_connect_controller.sh`
+  - `filetree.json`
+
+### 2025-07-06: Advanced Controller Pairing System
+- **Issue**: DualShock 4 controllers were being detected during Bluetooth scan but pairing would fail
+- **Solution**: Created advanced controller pairing system with multiple pairing strategies
+- **Key Features**:
+  - Multiple pairing approaches (standard, connect-first, Bluetooth reset, manual auth)
+  - Extended 45-second scan timeout with progress indicators
+  - DualShock 4 MAC address prefix recognition
+  - Automatic Bluetooth stack reset when pairing fails
+  - Comprehensive diagnostics and troubleshooting tools
+  - Color-coded output with verbose logging options
 
 *Built for satan 🖤*
