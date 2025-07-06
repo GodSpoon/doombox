@@ -204,21 +204,21 @@ class DoomBoxKiosk:
             
             # Load Doom 2016 fonts for header
             if (os.path.exists(doom_left_path) and os.path.exists(doom_right_path) and os.path.exists(doom_text_path)):
-                self.font_doom_left = pygame.font.Font(doom_left_path, 78)
-                self.font_doom_right = pygame.font.Font(doom_right_path, 78)
-                self.font_doom_text = pygame.font.Font(doom_text_path, 78)
+                self.font_doom_left = pygame.font.Font(doom_left_path, 90)
+                self.font_doom_right = pygame.font.Font(doom_right_path, 90)
+                self.font_doom_text = pygame.font.Font(doom_text_path, 90)
                 logger.info("Using Doom 2016 fonts for header")
             else:
                 # Fallback to Puffin Liquid for header
                 if os.path.exists(puffin_liquid_path):
-                    self.font_doom_left = pygame.font.Font(puffin_liquid_path, 78)
-                    self.font_doom_right = pygame.font.Font(puffin_liquid_path, 78)
-                    self.font_doom_text = pygame.font.Font(puffin_liquid_path, 78)
+                    self.font_doom_left = pygame.font.Font(puffin_liquid_path, 90)
+                    self.font_doom_right = pygame.font.Font(puffin_liquid_path, 90)
+                    self.font_doom_text = pygame.font.Font(puffin_liquid_path, 90)
                     logger.warning("Doom 2016 fonts not found, using Puffin Liquid for header")
                 else:
-                    self.font_doom_left = pygame.font.SysFont('arial', 78, bold=True)
-                    self.font_doom_right = pygame.font.SysFont('arial', 78, bold=True)
-                    self.font_doom_text = pygame.font.SysFont('arial', 78, bold=True)
+                    self.font_doom_left = pygame.font.SysFont('arial', 90, bold=True)
+                    self.font_doom_right = pygame.font.SysFont('arial', 90, bold=True)
+                    self.font_doom_text = pygame.font.SysFont('arial', 90, bold=True)
                     logger.warning("Doom 2016 and Puffin fonts not found, using system font for header")
             
             # Check if Puffin Liquid exists and use it for titles
@@ -251,9 +251,9 @@ class DoomBoxKiosk:
         except Exception as e:
             logger.error(f"Font setup error: {e}")
             # Ultimate fallback
-            self.font_doom_left = pygame.font.Font(None, 78)
-            self.font_doom_right = pygame.font.Font(None, 78)
-            self.font_doom_text = pygame.font.Font(None, 78)
+            self.font_doom_left = pygame.font.Font(None, 90)
+            self.font_doom_right = pygame.font.Font(None, 90)
+            self.font_doom_text = pygame.font.Font(None, 90)
             self.font_title = pygame.font.Font(None, 72)
             self.font_subtitle = pygame.font.Font(None, 48)
             self.font_large = pygame.font.Font(None, 36)
@@ -523,13 +523,13 @@ class DoomBoxKiosk:
             skull_y = y + 10  # Slightly lower to align with text
             self.screen.blit(self.skull_icon, (start_x, skull_y))
         
-        # Draw text parts
+        # Draw text parts with proper black drop shadow
         current_x = start_x + skull_spacing
         for part in parts:
-            # Draw shadow
+            # Draw black drop shadow (larger offset for more dramatic effect)
             shadow_surf = part.copy()
-            shadow_surf.fill(self.ui.COLORS['OFF_BLACK'])
-            self.screen.blit(shadow_surf, (current_x + 3, y + 3))
+            shadow_surf.fill((0, 0, 0))  # Pure black shadow
+            self.screen.blit(shadow_surf, (current_x + 4, y + 4))
             
             # Draw main text
             self.screen.blit(part, (current_x, y))
