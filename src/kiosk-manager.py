@@ -138,65 +138,7 @@ class CleanUIRenderer:
         self.blink_timer = (self.blink_timer + 0.02) % (2 * math.pi)
         self.pulse_timer = (self.pulse_timer + 0.01) % (2 * math.pi)
 
-    def draw_doom_header(self, title_text, x, y):
-        """Draw header with Doom 2016 fonts and skull icons"""
-        # Split title into first, middle, and last characters
-        if len(title_text) >= 3:
-            first_char = title_text[0]
-            middle_text = title_text[1:-1]
-            last_char = title_text[-1]
-        else:
-            first_char = title_text[0] if len(title_text) > 0 else ""
-            middle_text = title_text[1:] if len(title_text) > 1 else ""
-            last_char = ""
-        
-        # Render each part
-        parts = []
-        if first_char:
-            first_surf = self.font_doom_left.render(first_char, True, self.ui.COLORS['LIGHT_PURPLE'])
-            parts.append(first_surf)
-        
-        if middle_text:
-            middle_surf = self.font_doom_text.render(middle_text, True, self.ui.COLORS['LIGHT_PURPLE'])
-            parts.append(middle_surf)
-        
-        if last_char:
-            last_surf = self.font_doom_right.render(last_char, True, self.ui.COLORS['LIGHT_PURPLE'])
-            parts.append(last_surf)
-        
-        # Calculate total width
-        total_width = sum(part.get_width() for part in parts)
-        
-        # Add skull icon spacing
-        skull_spacing = 80 if self.skull_icon else 0
-        total_width_with_skulls = total_width + (skull_spacing * 2)
-        
-        # Center the entire header
-        start_x = x - total_width_with_skulls // 2
-        
-        # Draw left skull
-        if self.skull_icon:
-            skull_y = y + 10  # Slightly lower to align with text
-            self.screen.blit(self.skull_icon, (start_x, skull_y))
-        
-        # Draw text parts
-        current_x = start_x + skull_spacing
-        for part in parts:
-            # Draw shadow
-            shadow_surf = part.copy()
-            shadow_surf.fill(self.ui.COLORS['OFF_BLACK'])
-            self.screen.blit(shadow_surf, (current_x + 3, y + 3))
-            
-            # Draw main text
-            self.screen.blit(part, (current_x, y))
-            current_x += part.get_width()
-        
-        # Draw right skull
-        if self.skull_icon:
-            skull_y = y + 10  # Slightly lower to align with text
-            self.screen.blit(self.skull_icon, (start_x + total_width_with_skulls - 64, skull_y))
-        
-        return total_width_with_skulls
+
 
 class DoomBoxKiosk:
     def __init__(self):
@@ -539,6 +481,66 @@ class DoomBoxKiosk:
             self.skull_icon = None
             self.trophy_icon = None
             self.crown_icon = None
+
+    def draw_doom_header(self, title_text, x, y):
+        """Draw header with Doom 2016 fonts and skull icons"""
+        # Split title into first, middle, and last characters
+        if len(title_text) >= 3:
+            first_char = title_text[0]
+            middle_text = title_text[1:-1]
+            last_char = title_text[-1]
+        else:
+            first_char = title_text[0] if len(title_text) > 0 else ""
+            middle_text = title_text[1:] if len(title_text) > 1 else ""
+            last_char = ""
+        
+        # Render each part
+        parts = []
+        if first_char:
+            first_surf = self.font_doom_left.render(first_char, True, self.ui.COLORS['LIGHT_PURPLE'])
+            parts.append(first_surf)
+        
+        if middle_text:
+            middle_surf = self.font_doom_text.render(middle_text, True, self.ui.COLORS['LIGHT_PURPLE'])
+            parts.append(middle_surf)
+        
+        if last_char:
+            last_surf = self.font_doom_right.render(last_char, True, self.ui.COLORS['LIGHT_PURPLE'])
+            parts.append(last_surf)
+        
+        # Calculate total width
+        total_width = sum(part.get_width() for part in parts)
+        
+        # Add skull icon spacing
+        skull_spacing = 80 if self.skull_icon else 0
+        total_width_with_skulls = total_width + (skull_spacing * 2)
+        
+        # Center the entire header
+        start_x = x - total_width_with_skulls // 2
+        
+        # Draw left skull
+        if self.skull_icon:
+            skull_y = y + 10  # Slightly lower to align with text
+            self.screen.blit(self.skull_icon, (start_x, skull_y))
+        
+        # Draw text parts
+        current_x = start_x + skull_spacing
+        for part in parts:
+            # Draw shadow
+            shadow_surf = part.copy()
+            shadow_surf.fill(self.ui.COLORS['OFF_BLACK'])
+            self.screen.blit(shadow_surf, (current_x + 3, y + 3))
+            
+            # Draw main text
+            self.screen.blit(part, (current_x, y))
+            current_x += part.get_width()
+        
+        # Draw right skull
+        if self.skull_icon:
+            skull_y = y + 10  # Slightly lower to align with text
+            self.screen.blit(self.skull_icon, (start_x + total_width_with_skulls - 64, skull_y))
+        
+        return total_width_with_skulls
 
     def draw_main_screen(self):
         """Draw the main kiosk screen with purple color scheme and visible video background"""
