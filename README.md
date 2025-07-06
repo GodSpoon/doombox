@@ -1,8 +1,8 @@
 # shmegl's DoomBox
 
-**Highest score gets a free tattoo**
+**frag4ink**
 
-An interactive gaming kiosk built on Radxa Zero that displays a QR code for user registration, launches DOOM with custom player names, tracks high scores, and awards prizes to top players.
+An interactive promo kiosk built on Radxa Zero that displays a QR code for user registration, launches DOOM with custom player names, tracks high scores, and awards prizes to top players.
 
 ## Hardware Requirements
 
@@ -13,40 +13,97 @@ An interactive gaming kiosk built on Radxa Zero that displays a QR code for user
 
 ## Software Stack
 
-- **OS**: Dietpi
+- **OS**: Dietpi/Debian 12
 - **Desktop**: XFCE4
-- **Game Engine**: LZDoom
+- **Game Engine**: dsda-doom (with lzdoom compatibility wrapper)
 - **Backend**: Python 3 with Flask
 - **Database**: SQLite
-- **Communication**: MQTT (optional)
+- **Communication**: MQTT (mosquitto)
 
 ## Quick Setup
 
-1. **Clone the repository on your Radxa Zero:**
-   ```bash
-   git clone https://github.com/your-username/doombox.git
-   cd doombox
-   ```
+### 1. Clone the Repository on Your Radxa Zero
 
-2. **Run the setup script as root:**
-   ```bash
-   sudo bash setup.sh
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/your-username/doombox.git
+cd doombox
 
-3. **Pair your DualShock 4 controller:**
-   ```bash
-   /opt/doombox/pair_controller.sh
-   ```
+# Verify you have all required files
+ls -la
+# Should show: kiosk.py, setup.sh, config.py, webhook.py, index.html, etc.
+```
 
-4. **Update the QR code URL** in `/opt/doombox/kiosk.py` to point to your GitHub Pages form
+### 2. Run the Setup Script as Root
 
-5. **Reboot to start the kiosk automatically**
+```bash
+sudo bash setup.sh
+```
+
+The setup script will:
+- Install all system dependencies (dsda-doom, Python, MQTT, etc.)
+- Create Python virtual environment with required packages
+- Download DOOM.WAD from archive.org
+- Copy all application files from the repository to `/opt/doombox/`
+- Create systemd service and startup scripts
+- Set up XFCE desktop entries for testing
+- Configure auto-login and auto-start options
+
+### 3. Start the Display Server
+
+```bash
+# Start X11 for testing
+/opt/doombox/start_x_display.sh
+```
+
+### 4. Test Components
+
+```bash
+# Test dsda-doom directly
+/opt/doombox/test_dsda_doom.sh
+
+# Test via lzdoom compatibility wrapper
+/opt/doombox/test_doom.sh
+
+# Test the full kiosk application
+/opt/doombox/test_kiosk.sh
+```
+
+### 5. Pair Your DualShock 4 Controller
+
+```bash
+/opt/doombox/pair_controller.sh
+```
+
+### 6. Configure Your Web Form URL
+
+Edit the QR code URL in `/opt/doombox/kiosk.py`:
+```python
+self.form_url = "https://your-username.github.io/doombox-form/"
+```
+
+Or update the configuration in `/opt/doombox/config.py`:
+```python
+GITHUB_FORM_URL = "https://your-username.github.io/doombox-form/"
+```
+
+### 7. Start the Kiosk Service
+
+```bash
+# Enable and start the service
+/opt/doombox/start_kiosk_service.sh
+
+# Or manually:
+sudo systemctl enable doombox.service
+sudo systemctl start doombox.service
+```
 
 ## Features
 
 ### 🎮 Game Integration
-- Launches LZDoom with custom player names & overlay
+- Launches dsda-doom with custom player names & overlay
 - Automatic game exit detection and score logging
+- lzdoom compatibility wrapper for seamless integration
 
 ### 🎯 Controller Support
 - DualShock 4 Bluetooth/wired support
@@ -67,13 +124,19 @@ An interactive gaming kiosk built on Radxa Zero that displays a QR code for user
 
 ```
 /opt/doombox/
-├── kiosk.py              # Main application
+├── kiosk.py              # Main application (copied from repo)
+├── config.py             # Configuration file (copied from repo)
+├── webhook.py            # Webhook bridge (copied from repo)
 ├── venv/                 # Python virtual environment
 ├── doom/
-│   └── DOOM.WAD         # Game data
+│   └── DOOM.WAD         # Game data (downloaded)
+├── form/                 # Web form files (copied from repo)
+│   ├── index.html
+│   └── CNAME
 ├── logs/                # Application logs
 ├── scores.db            # SQLite score database
 ├── start.sh             # Startup script
+├── start_x_display.sh   # X11 startup helper
 ├── test_doom.sh         # Test DOOM directly
 ├── test_kiosk.sh        # Test kiosk application
 └── pair_controller.sh   # Controller pairing helper
@@ -93,7 +156,8 @@ CREATE TABLE scores (
     player_name TEXT NOT NULL,
     score INTEGER NOT NULL,
     timestamp DATETIME NOT NULL,
-    level_reached INTEGER DEFAULT 1
+    level_reached INTEGER DEFAULT 1,
+    time_played INTEGER DEFAULT 0
 );
 ```
 
@@ -124,15 +188,31 @@ sudo journalctl -u doombox -f
 
 # Restart service
 sudo systemctl restart doombox
+
+# View scores
+/opt/doombox/view_scores.sh
 ```
+
+## XFCE Desktop Integration
+
+After setup, you'll find a "DoomBox" category in the XFCE Applications Menu with these tools:
+
+- **DoomBox Kiosk** - Main kiosk application
+- **Test DOOM (Wrapper)** - Test DOOM via lzdoom wrapper
+- **Test dsda-doom (Direct)** - Test dsda-doom directly
+- **Debug Controller** - Test controller input
+- **Pair Controller** - Bluetooth pairing helper
+- **View High Scores** - Database viewer
+- **Start/Stop Kiosk Service** - Service management
+- **Start X Display** - X11 startup helper
 
 ## Web Form Integration
 
 ### GitHub Pages Setup
-1. Create a new repository for your form
-2. Enable GitHub Pages in repository settings
-3. Use the provided HTML template in `form/index.html`
-4. Update the form action URL to trigger your kiosk
+1. The `index.html` file is copied to `/opt/doombox/form/`
+2. Deploy this to GitHub Pages
+3. Update the QR code URL in the kiosk configuration
+4. Form submissions trigger the kiosk via MQTT or webhook
 
 ### MQTT Integration
 The kiosk listens on `doombox/start_game` topic:
@@ -152,6 +232,22 @@ Create a file at `/opt/doombox/new_player.json`:
 
 ## Troubleshooting
 
+### Setup Issues
+```bash
+# Check if all files were copied properly
+ls -la /opt/doombox/
+# Should show kiosk.py, config.py, etc.
+
+# Verify X11 is running
+export DISPLAY=:0
+xset q
+
+# Check services
+systemctl status bluetooth
+systemctl status mosquitto
+systemctl status doombox
+```
+
 ### Controller Issues
 ```bash
 # Check if controller is detected
@@ -160,18 +256,24 @@ ls /dev/input/js*
 # Test controller input
 jstest /dev/input/js0
 
+# Debug controller
+/opt/doombox/debug_controller.sh
+
 # Bluetooth status
 sudo systemctl status bluetooth
 ```
 
 ### DOOM Issues
 ```bash
-# Test DOOM directly
+# Test dsda-doom directly
 cd /opt/doombox/doom
-lzdoom -iwad DOOM.WAD
+dsda-doom -iwad DOOM.WAD
 
-# Check DOOM installation
-which lzdoom
+# Test wrapper
+/usr/local/bin/lzdoom -iwad /opt/doombox/doom/DOOM.WAD
+
+# Check installation
+which dsda-doom
 ```
 
 ### Display Issues
@@ -179,42 +281,83 @@ which lzdoom
 # Check current resolution
 xrandr
 
+# Start X server manually
+/opt/doombox/start_x_display.sh
+
 # Test different resolution
 xrandr --output HDMI-1 --mode 1280x960
 ```
 
-## Customization
+## Auto-Boot Kiosk Mode
 
-### Changing Colors/Theme
-Edit the color constants in `kiosk.py`:
-```python
-self.BLACK = (0, 0, 0)
-self.WHITE = (255, 255, 255)
-self.RED = (255, 0, 0)
-# ... etc
+For production deployment:
+
+```bash
+# Set to boot to console (no desktop)
+sudo systemctl set-default multi-user.target
+
+# Enable auto-start of kiosk
+sudo systemctl enable doombox.service
+
+# Reboot to test
+sudo reboot
 ```
 
-### Adding Custom DOOM Mods
-1. Place mod files in `/opt/doombox/doom/`
-2. Update the DOOM command in `_run_doom()` method
-3. Add `-file modname.wad` parameter
+## Development
 
-### Customizing Score Display
-Modify the `draw_screen()` method to change:
-- Number of scores shown
-- Score formatting
-- Display layout
+### Repository Structure
+```
+doombox/
+├── kiosk.py              # Main kiosk application
+├── config.py             # Configuration settings
+├── webhook.py            # Webhook bridge server
+├── setup.sh              # Installation script
+├── index.html            # Web registration form
+├── CNAME                 # GitHub Pages domain
+├── README.md             # This file
+├── lmao.gif              # Floating animation
+└── formsubmit.jpg        # Form submission image
+```
+
+### Making Changes
+1. Edit files in the repository
+2. Copy changes to `/opt/doombox/` or re-run setup
+3. Restart the kiosk service
 
 ## Security Notes
 
-⚠️ **This setup runs as root because im lazy**
+⚠️ **This setup runs as root for simplicity**
 
 For production use, consider:
 - Creating a dedicated user account
 - Implementing proper file permissions
 - Using systemd user services
 - Sandboxing the DOOM process
-  
+
+## Customization
+
+### Changing Colors/Theme
+Edit the color constants in `config.py` or `kiosk.py`:
+```python
+COLORS = {
+    'BLACK': (0, 0, 0),
+    'WHITE': (255, 255, 255),
+    'RED': (255, 0, 0),
+    # ... etc
+}
+```
+
+### Adding Custom DOOM Mods
+1. Place mod files in `/opt/doombox/doom/`
+2. Update the DOOM command in `config.py`
+3. Add `-file modname.wad` parameter
+
+### Customizing Score Display
+Modify the `draw_screen()` method in `kiosk.py` to change:
+- Number of scores shown
+- Score formatting
+- Display layout
+
 ## License
 
 MIT License - see LICENSE file for details
@@ -222,8 +365,9 @@ MIT License - see LICENSE file for details
 ## Credits
 
 - **Hardware**: Radxa Zero
-- **Game**: DOOM (duh)
-- **Engine**: LZDoom
+- **Game**: DOOM (id Software)
+- **Engine**: dsda-doom
+- **Inspired by**: Classic arcade cabinets
 
 ---
 
