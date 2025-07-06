@@ -497,15 +497,15 @@ class DoomBoxKiosk:
         # Render each part
         parts = []
         if first_char:
-            first_surf = self.font_doom_left.render(first_char, True, self.ui.COLORS['LIGHT_PURPLE'])
+            first_surf = self.font_doom_left.render(first_char, True, (220, 50, 50))  # Doom red color
             parts.append(first_surf)
         
         if middle_text:
-            middle_surf = self.font_doom_text.render(middle_text, True, self.ui.COLORS['LIGHT_PURPLE'])
+            middle_surf = self.font_doom_text.render(middle_text, True, (220, 50, 50))  # Doom red color
             parts.append(middle_surf)
         
         if last_char:
-            last_surf = self.font_doom_right.render(last_char, True, self.ui.COLORS['LIGHT_PURPLE'])
+            last_surf = self.font_doom_right.render(last_char, True, (220, 50, 50))  # Doom red color
             parts.append(last_surf)
         
         # Calculate total width
@@ -566,15 +566,9 @@ class DoomBoxKiosk:
             )
 
         # === HEADER SECTION ===
-        header_rect = (0, 0, self.DISPLAY_SIZE[0], self.ui.LAYOUT['HEADER_HEIGHT'])
+        # Remove header background div - let header text appear directly on video
         
-        # Header background with transparency
-        header_overlay = pygame.Surface((header_rect[2], header_rect[3]))
-        header_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        header_overlay.set_alpha(160)  # Lighter for video visibility
-        self.screen.blit(header_overlay, (header_rect[0], header_rect[1]))
-
-        # Main title with Doom 2016 font and skull icons
+        # Main title with Doom 2016 font and skull icons (no background)
         title_y = 25
         self.draw_doom_header(
             "Slaughter with Shmegl",
@@ -707,35 +701,32 @@ class DoomBoxKiosk:
         title_text = "TOP SCORES"
         title_width = self.font_large.size(title_text)[0]
         
-        # Calculate positions for centered layout with trophy icons
-        trophy_spacing = 60 if self.trophy_icon else 0  # Increased spacing
-        total_width = title_width + (trophy_spacing * 2)
-        start_x = scores_section_x + scores_section_width//2 - total_width//2
+        # Center the title text, then position trophy icons to the right
+        title_x = scores_section_x + scores_section_width//2 - title_width//2
         
-        # Draw left trophy icon
-        if self.trophy_icon:
-            trophy_y = scores_title_y + 5  # Slightly lower to align with text
-            # Tint the trophy icon gold
-            trophy_tinted = self.trophy_icon.copy()
-            trophy_tinted.fill(self.ui.COLORS['GOLD_PURPLE'], special_flags=pygame.BLEND_MULT)
-            self.screen.blit(trophy_tinted, (start_x, trophy_y))
-        
-        # Draw title text
+        # Draw title text (centered)
         self.ui.draw_text_with_shadow(
             title_text,
             self.font_large,
             self.ui.COLORS['GOLD_PURPLE'],
-            (start_x + trophy_spacing, scores_title_y),
+            (title_x, scores_title_y),
             self.ui.COLORS['OFF_BLACK']
         )
         
-        # Draw right trophy icon
+        # Draw trophy icons to the right of the centered text
         if self.trophy_icon:
             trophy_y = scores_title_y + 5  # Slightly lower to align with text
-            # Tint the trophy icon gold
+            trophy_spacing = 15  # Space between text and first trophy
+            
+            # Tint the trophy icons gold
             trophy_tinted = self.trophy_icon.copy()
             trophy_tinted.fill(self.ui.COLORS['GOLD_PURPLE'], special_flags=pygame.BLEND_MULT)
-            self.screen.blit(trophy_tinted, (start_x + trophy_spacing + title_width, trophy_y))
+            
+            # First trophy to the right of text
+            self.screen.blit(trophy_tinted, (title_x + title_width + trophy_spacing, trophy_y))
+            
+            # Second trophy further to the right
+            self.screen.blit(trophy_tinted, (title_x + title_width + trophy_spacing + 40, trophy_y))
 
         # Score entries
         scores = self.get_top_scores(8)  # Show top 8 for clean layout
