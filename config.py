@@ -1,23 +1,122 @@
 """
-DoomBox Configuration File
-Edit these settings to customize your kiosk
+DoomBox Retro Configuration File
+Enhanced settings for the retro aesthetic kiosk
 """
 
 # Display Settings
 DISPLAY_SIZE = (1280, 960)
 DOOM_RESOLUTION = (640, 480)
 FULLSCREEN = True
-FPS_LIMIT = 30
+FPS_LIMIT = 60  # Higher FPS for smooth animations
 
-# Kiosk Text
+# Kiosk Text - Enhanced for retro feel
 TITLE = "shmegl's DoomBox"
 SUBTITLE = "Highest score gets a free tattoo!"
-INSTRUCTION = "Scan the QR code and fill out the form to play"
+INSTRUCTION = "SCAN THE QR CODE TO ENTER THE BATTLE"
+QR_LABEL = ">> SCAN TO ENTER <<"
 
-# URLs and Integration
-GITHUB_FORM_URL = "https://your-username.github.io/doombox-form/"
+# URLs and Integration - Updated URL
+GITHUB_FORM_URL = "http://shmeglsdoombox.spoon.rip"
 WEBHOOK_URL = "http://your-server:5000/register"  # Optional
 INSTAGRAM_HANDLE = "@shmegl"
+
+# Retro Color Palette - Classic arcade machine colors
+RETRO_COLORS = {
+    # Base colors
+    'BLACK': (0, 0, 0),
+    'DARK_GRAY': (32, 32, 32),
+    'GRAY': (64, 64, 64),
+    'LIGHT_GRAY': (128, 128, 128),
+    'WHITE': (255, 255, 255),
+    
+    # Bright primary colors
+    'BRIGHT_RED': (255, 0, 0),
+    'BRIGHT_GREEN': (0, 255, 0),
+    'BRIGHT_BLUE': (0, 0, 255),
+    'BRIGHT_YELLOW': (255, 255, 0),
+    'BRIGHT_CYAN': (0, 255, 255),
+    'BRIGHT_MAGENTA': (255, 0, 255),
+    
+    # Dark variants
+    'DARK_RED': (128, 0, 0),
+    'DARK_GREEN': (0, 128, 0),
+    'DARK_BLUE': (0, 0, 128),
+    
+    # Special colors
+    'ORANGE': (255, 128, 0),
+    'PURPLE': (128, 0, 255),
+    'LIME': (128, 255, 0),
+    'PINK': (255, 128, 255),
+    'TEAL': (0, 128, 128),
+    'AMBER': (255, 191, 0),
+    'BLOOD_RED': (139, 0, 0),
+    
+    # CRT monitor colors
+    'CRT_GREEN': (0, 255, 0),
+    'CRT_AMBER': (255, 176, 0),
+    'CRT_WHITE': (192, 192, 192),
+}
+
+# Animation Settings
+TITLE_PULSE_SPEED = 0.1
+SUBTITLE_COLOR_CYCLE_SPEED = 30  # frames
+BORDER_COLOR_CYCLE_SPEED = 20   # frames
+QR_LABEL_PULSE_SPEED = 0.2
+
+# UI Layout Settings
+QR_CODE_SIZE = 400
+QR_CODE_POSITION = (100, 280)
+QR_BORDER_SIZE = 8
+QR_FRAME_PADDING = 20
+
+SCORES_PANEL_POSITION = (600, 280)
+SCORES_PANEL_SIZE = (600, 480)
+MAX_SCORES_DISPLAYED = 10
+
+# Typography Settings
+FONT_SIZES = {
+    'TITLE': 120,      # Main title
+    'SUBTITLE': 72,    # Subtitle  
+    'HEADER': 48,      # Section headers
+    'CONTENT': 32,     # Main content
+    'FOOTER': 24,      # Footer text
+    'TINY': 18,        # Very small text
+}
+
+# Visual Effects Settings
+SCANLINES_ENABLED = True
+SCANLINES_INTENSITY = 0.05
+
+GLOW_EFFECTS_ENABLED = True
+GLOW_RADIUS = 3
+
+GRID_BACKGROUND_ENABLED = True
+GRID_SIZE = 40
+
+CRT_EFFECTS = {
+    'SCANLINES': True,
+    'GLOW': True,
+    'GRID': True,
+    'BORDER_ANIMATION': True,
+}
+
+# Score Display Colors
+SCORE_COLORS = {
+    'FIRST_PLACE': 'BRIGHT_YELLOW',   # Gold
+    'SECOND_PLACE': 'LIGHT_GRAY',     # Silver  
+    'THIRD_PLACE': 'ORANGE',          # Bronze
+    'OTHER_PLACES': 'WHITE',          # Regular
+    'NO_SCORES': 'GRAY',              # When empty
+}
+
+# Status Colors
+STATUS_COLORS = {
+    'CONTROLLER_ONLINE': 'BRIGHT_GREEN',
+    'CONTROLLER_OFFLINE': 'BRIGHT_RED',
+    'GAME_RUNNING': 'BRIGHT_WHITE',
+    'WAITING': 'BRIGHT_CYAN',
+    'ERROR': 'BRIGHT_RED',
+}
 
 # MQTT Settings (Optional)
 MQTT_ENABLED = True
@@ -30,13 +129,10 @@ CONTROLLER_NAME = "Sony Interactive Entertainment Wireless Controller"  # PS4 Co
 AUTO_RECONNECT = True
 
 # Konami Code (controller button mapping)
-# Standard PS4 controller mapping:
-# 0=X, 1=Circle, 2=Square, 3=Triangle
-# D-pad: up=hat(0,1), down=hat(0,-1), left=hat(-1,0), right=hat(1,0)
 KONAMI_BUTTONS = [
-    'up', 'up', 'down', 'down',
-    'left', 'right', 'left', 'right',
-    1, 0  # Circle, X
+    'dpad_up', 'dpad_up', 'dpad_down', 'dpad_down',
+    'dpad_left', 'dpad_right', 'dpad_left', 'dpad_right',
+    'button_1', 'button_0'  # Circle, X (reversed for emphasis)
 ]
 
 # Game Settings
@@ -48,37 +144,11 @@ DOOM_EXTRA_ARGS = [
     "-fullscreen" if FULLSCREEN else "-windowed"
 ]
 
-# Score Settings
-MAX_SCORES_DISPLAYED = 10
-SCORE_DATABASE = "/opt/doombox/scores.db"
-
 # File Paths
 BASE_DIR = "/opt/doombox"
 LOGS_DIR = f"{BASE_DIR}/logs"
 TRIGGER_FILE = f"{BASE_DIR}/new_player.json"
-
-# Colors (RGB tuples)
-COLORS = {
-    'BLACK': (0, 0, 0),
-    'WHITE': (255, 255, 255),
-    'RED': (255, 0, 0),
-    'GREEN': (0, 255, 0),
-    'BLUE': (0, 0, 255),
-    'YELLOW': (255, 255, 0),
-    'CYAN': (0, 255, 255),
-    'MAGENTA': (255, 0, 255),
-    'ORANGE': (255, 165, 0),
-    'PURPLE': (128, 0, 128)
-}
-
-# Font Sizes
-FONT_SIZES = {
-    'TITLE': 72,
-    'SUBTITLE': 48,
-    'INSTRUCTION': 32,
-    'SCORES': 32,
-    'STATUS': 36
-}
+SCORE_DATABASE = f"{BASE_DIR}/scores.db"
 
 # Auto-start Settings
 AUTO_START_ON_BOOT = True
@@ -102,6 +172,7 @@ ENABLE_WEBHOOK_CHECK = False
 ENABLE_CONTROLLER = True
 ENABLE_KONAMI_CODE = True
 ENABLE_TEST_MODE = True
+ENABLE_RETRO_EFFECTS = True
 
 # Test Mode Settings
 TEST_PLAYER_PREFIX = "TEST_"
@@ -112,26 +183,30 @@ QR_CODE_REFRESH_INTERVAL = 300  # 5 minutes
 SCORE_DISPLAY_DURATION = 10
 CONTROLLER_CHECK_INTERVAL = 5
 GAME_START_DELAY = 2
+INPUT_POLLING_RATE = 1/60  # 60 FPS
 
 # Prize Settings
 PRIZE_DESCRIPTION = "free tattoo"
 WINNER_NOTIFICATION = True
 WINNER_DISPLAY_DURATION = 30  # seconds
 
-# Advanced Settings
-SCREEN_SAVER_TIMEOUT = 0  # 0 = disabled
-ATTRACT_MODE = False  # Show demo gameplay when idle
-DEMO_TIMEOUT = 120  # seconds before starting demo
+# Advanced Retro Settings
+PIXEL_PERFECT_RENDERING = True
+CRISP_SCALING = True  # No interpolation for pixel art
+RETRO_FONT_RENDERING = False  # Disable antialiasing for pixel fonts
 
-# Custom Messages
+# Custom Messages - Enhanced for retro feel
 MESSAGES = {
-    'GAME_STARTING': "Starting game for {player_name}...",
-    'GAME_ENDED': "Game over! Final score: {score}",
-    'NEW_HIGH_SCORE': "🎉 NEW HIGH SCORE! 🎉",
-    'CONTROLLER_DISCONNECTED': "Controller disconnected. Please reconnect.",
-    'WAITING_FOR_PLAYERS': "Waiting for players...",
-    'KONAMI_ACTIVATED': "Test mode activated!",
-    'ERROR': "Something went wrong. Please try again."
+    'GAME_STARTING': ">>> INITIATING DOOM PROTOCOL FOR {player_name} <<<",
+    'GAME_ENDED': "GAME OVER! FINAL SCORE: {score}",
+    'NEW_HIGH_SCORE': "🎉 *** NEW HIGH SCORE ACHIEVED *** 🎉",
+    'CONTROLLER_DISCONNECTED': "CONTROLLER OFFLINE - PLEASE RECONNECT",
+    'WAITING_FOR_PLAYERS': "AWAITING WARRIORS...",
+    'KONAMI_ACTIVATED': "*** TEST MODE ACTIVATED ***",
+    'ERROR': "SYSTEM ERROR - PLEASE TRY AGAIN",
+    'NO_SCORES': "NO SCORES YET - BE THE FIRST!",
+    'SCAN_TO_PLAY': ">> SCAN TO ENTER <<",
+    'NOW_PLAYING': ">>> NOW PLAYING: {player_name} <<<",
 }
 
 # Network Settings
@@ -176,3 +251,78 @@ CUSTOM_DOOM_ARGS = [
     # "+dmflags", "0",
     # "+skill", str(DOOM_SKILL_LEVEL)
 ]
+
+# Retro Theme Presets
+THEME_PRESETS = {
+    'CLASSIC_ARCADE': {
+        'PRIMARY': 'BRIGHT_RED',
+        'SECONDARY': 'BRIGHT_YELLOW',
+        'ACCENT': 'BRIGHT_GREEN',
+        'BACKGROUND': 'BLACK',
+        'TEXT': 'WHITE',
+    },
+    'CRT_GREEN': {
+        'PRIMARY': 'CRT_GREEN',
+        'SECONDARY': 'BRIGHT_GREEN',
+        'ACCENT': 'LIME',
+        'BACKGROUND': 'BLACK',
+        'TEXT': 'CRT_GREEN',
+    },
+    'AMBER_TERMINAL': {
+        'PRIMARY': 'CRT_AMBER',
+        'SECONDARY': 'AMBER',
+        'ACCENT': 'BRIGHT_YELLOW',
+        'BACKGROUND': 'BLACK',
+        'TEXT': 'CRT_AMBER',
+    },
+    'NEON_CYBERPUNK': {
+        'PRIMARY': 'BRIGHT_MAGENTA',
+        'SECONDARY': 'BRIGHT_CYAN',
+        'ACCENT': 'BRIGHT_BLUE',
+        'BACKGROUND': 'BLACK',
+        'TEXT': 'WHITE',
+    },
+}
+
+# Active theme
+ACTIVE_THEME = 'CLASSIC_ARCADE'
+
+# Border Animation Colors
+BORDER_ANIMATION_COLORS = [
+    'BRIGHT_RED',
+    'BRIGHT_YELLOW', 
+    'BRIGHT_GREEN',
+    'BRIGHT_CYAN',
+    'BRIGHT_BLUE',
+    'BRIGHT_MAGENTA'
+]
+
+# QR Code Settings
+QR_CODE_SETTINGS = {
+    'VERSION': 3,  # Size of QR code (1-40, higher = larger)
+    'ERROR_CORRECTION': 'L',  # L, M, Q, H (L = lowest, H = highest)
+    'BOX_SIZE': 12,  # Size of each box in pixels
+    'BORDER': 8,     # Border size around QR code
+    'FILL_COLOR': 'WHITE',
+    'BACK_COLOR': 'BLACK',
+}
+
+# Screen Saver Settings
+SCREEN_SAVER_TIMEOUT = 0  # 0 = disabled
+ATTRACT_MODE = False  # Show demo gameplay when idle
+DEMO_TIMEOUT = 120  # seconds before starting demo
+
+# Accessibility Settings
+HIGH_CONTRAST_MODE = False
+LARGE_TEXT_MODE = False
+REDUCE_ANIMATIONS = False
+
+# Easter Eggs
+ENABLE_EASTER_EGGS = True
+KONAMI_CODE_TIMEOUT = 5.0  # seconds
+
+# Version Information
+VERSION = "2.0.0"
+VERSION_CODENAME = "RETRO EDITION"
+BUILD_DATE = "2025-07-06"
+AUTHOR = "shmegl"
