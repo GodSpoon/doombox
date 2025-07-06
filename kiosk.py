@@ -461,22 +461,6 @@ class DoomBoxKiosk:
             (2, 2)
         )
 
-        # Instruction with pulse effect
-        instruction_y = subtitle_y + 55
-        instruction_color = self.ui.COLORS['SUCCESS_PURPLE']
-        # Add subtle pulse effect
-        pulse = abs(math.sin(self.ui.pulse_timer)) * 0.3 + 0.7
-        instruction_color = tuple(int(c * pulse) for c in instruction_color)
-        
-        self.ui.draw_text_with_shadow(
-            "SCAN THE QR CODE TO ENTER THE BATTLE",
-            self.font_large,
-            instruction_color,
-            (self.DISPLAY_SIZE[0]//2 - self.font_large.size("SCAN THE QR CODE TO ENTER THE BATTLE")[0]//2, instruction_y),
-            self.ui.COLORS['OFF_BLACK'],
-            (1, 1)
-        )
-
         # === MAIN CONTENT AREA ===
         content_y = self.ui.LAYOUT['HEADER_HEIGHT'] + self.ui.LAYOUT['MARGIN']
         content_height = self.DISPLAY_SIZE[1] - content_y - self.ui.LAYOUT['MARGIN']
@@ -621,20 +605,6 @@ class DoomBoxKiosk:
                 self.font_medium,
                 self.ui.COLORS['PURPLE_BLUE'],
                 (scores_section_x + scores_section_width - score_width - 30, entry_y),
-                self.ui.COLORS['OFF_BLACK']
-            )
-
-        # === FOOTER INFO ===
-        footer_y = self.DISPLAY_SIZE[1] - 60
-        
-        # Konami code hint (blinking)
-        if int(self.ui.blink_timer * 2) % 2:
-            konami_text = "🎮 KONAMI CODE FOR TEST MODE 🎮"
-            self.ui.draw_text_with_shadow(
-                konami_text,
-                self.font_small,
-                self.ui.COLORS['MEDIUM_GRAY'],
-                (self.DISPLAY_SIZE[0]//2 - self.font_small.size(konami_text)[0]//2, footer_y),
                 self.ui.COLORS['OFF_BLACK']
             )
 
