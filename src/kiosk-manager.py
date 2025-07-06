@@ -73,7 +73,7 @@ class CleanUIRenderer:
 
         # Layout constants for 4:3 (1280x960) optimization
         self.LAYOUT = {
-            'HEADER_HEIGHT': 180,                 # Reduced from 25% to fixed height
+            'HEADER_HEIGHT': 140,                 # Reduced to better match actual header content
             'MARGIN': 40,                         # Consistent margins
             'PADDING': 20,                        # Internal padding
             'BORDER_RADIUS': 12,                  # Modern rounded corners
@@ -569,7 +569,7 @@ class DoomBoxKiosk:
         # Remove header background div - let header text appear directly on video
         
         # Main title with Doom 2016 font and skull icons (no background)
-        title_y = 25
+        title_y = 20
         self.draw_doom_header(
             "Slaughter with Shmegl",
             self.DISPLAY_SIZE[0]//2,
@@ -577,7 +577,7 @@ class DoomBoxKiosk:
         )
 
         # Subtitle
-        subtitle_y = title_y + 80
+        subtitle_y = title_y + 95
         self.ui.draw_text_with_shadow(
             "Get the high score on Doom to win a free tattoo from Petra",
             self.font_subtitle,
