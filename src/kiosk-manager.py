@@ -138,6 +138,66 @@ class CleanUIRenderer:
         self.blink_timer = (self.blink_timer + 0.02) % (2 * math.pi)
         self.pulse_timer = (self.pulse_timer + 0.01) % (2 * math.pi)
 
+    def draw_doom_header(self, title_text, x, y):
+        """Draw header with Doom 2016 fonts and skull icons"""
+        # Split title into first, middle, and last characters
+        if len(title_text) >= 3:
+            first_char = title_text[0]
+            middle_text = title_text[1:-1]
+            last_char = title_text[-1]
+        else:
+            first_char = title_text[0] if len(title_text) > 0 else ""
+            middle_text = title_text[1:] if len(title_text) > 1 else ""
+            last_char = ""
+        
+        # Render each part
+        parts = []
+        if first_char:
+            first_surf = self.font_doom_left.render(first_char, True, self.ui.COLORS['LIGHT_PURPLE'])
+            parts.append(first_surf)
+        
+        if middle_text:
+            middle_surf = self.font_doom_text.render(middle_text, True, self.ui.COLORS['LIGHT_PURPLE'])
+            parts.append(middle_surf)
+        
+        if last_char:
+            last_surf = self.font_doom_right.render(last_char, True, self.ui.COLORS['LIGHT_PURPLE'])
+            parts.append(last_surf)
+        
+        # Calculate total width
+        total_width = sum(part.get_width() for part in parts)
+        
+        # Add skull icon spacing
+        skull_spacing = 80 if self.skull_icon else 0
+        total_width_with_skulls = total_width + (skull_spacing * 2)
+        
+        # Center the entire header
+        start_x = x - total_width_with_skulls // 2
+        
+        # Draw left skull
+        if self.skull_icon:
+            skull_y = y + 10  # Slightly lower to align with text
+            self.screen.blit(self.skull_icon, (start_x, skull_y))
+        
+        # Draw text parts
+        current_x = start_x + skull_spacing
+        for part in parts:
+            # Draw shadow
+            shadow_surf = part.copy()
+            shadow_surf.fill(self.ui.COLORS['OFF_BLACK'])
+            self.screen.blit(shadow_surf, (current_x + 3, y + 3))
+            
+            # Draw main text
+            self.screen.blit(part, (current_x, y))
+            current_x += part.get_width()
+        
+        # Draw right skull
+        if self.skull_icon:
+            skull_y = y + 10  # Slightly lower to align with text
+            self.screen.blit(self.skull_icon, (start_x + total_width_with_skulls - 64, skull_y))
+        
+        return total_width_with_skulls
+
 class DoomBoxKiosk:
     def __init__(self):
         logger.info("Initializing DoomBox Kiosk with improved layout...")
@@ -167,10 +227,14 @@ class DoomBoxKiosk:
         # Setup fonts after directories are created
         self.setup_fonts()
         
+        # Setup icons
+        self.setup_icons()
+        
         # Initialize components
         self.setup_qr_code()
         self.setup_database()
         self.load_background_video()
+        self.setup_icons()
         
         logger.info("DoomBox Kiosk initialized successfully!")
 
@@ -185,24 +249,48 @@ class DoomBoxKiosk:
             os.makedirs(directory, exist_ok=True)
 
     def setup_fonts(self):
-        """Setup Puffin fonts with Liquid for headlines and Regular for body text"""
+        """Setup Doom 2016 fonts for header and Puffin fonts for body text"""
         try:
+            # Doom 2016 font paths
+            doom_left_path = os.path.join(self.fonts_dir, "Doom2016Left-RpJDA.ttf")
+            doom_right_path = os.path.join(self.fonts_dir, "Doom2016Right-VGz0z.ttf")
+            doom_text_path = os.path.join(self.fonts_dir, "Doom2016Text-GOlBq.ttf")
+            
             # Puffin font paths
             puffin_regular_path = os.path.join(self.fonts_dir, "Puffin Arcade Regular.ttf")
             puffin_liquid_path = os.path.join(self.fonts_dir, "Puffin Arcade Liquid.ttf")
             
-            # Check if Puffin Liquid exists and use it for headlines
+            # Load Doom 2016 fonts for header
+            if (os.path.exists(doom_left_path) and os.path.exists(doom_right_path) and os.path.exists(doom_text_path)):
+                self.font_doom_left = pygame.font.Font(doom_left_path, 72)
+                self.font_doom_right = pygame.font.Font(doom_right_path, 72)
+                self.font_doom_text = pygame.font.Font(doom_text_path, 72)
+                logger.info("Using Doom 2016 fonts for header")
+            else:
+                # Fallback to Puffin Liquid for header
+                if os.path.exists(puffin_liquid_path):
+                    self.font_doom_left = pygame.font.Font(puffin_liquid_path, 72)
+                    self.font_doom_right = pygame.font.Font(puffin_liquid_path, 72)
+                    self.font_doom_text = pygame.font.Font(puffin_liquid_path, 72)
+                    logger.warning("Doom 2016 fonts not found, using Puffin Liquid for header")
+                else:
+                    self.font_doom_left = pygame.font.SysFont('arial', 72, bold=True)
+                    self.font_doom_right = pygame.font.SysFont('arial', 72, bold=True)
+                    self.font_doom_text = pygame.font.SysFont('arial', 72, bold=True)
+                    logger.warning("Doom 2016 and Puffin fonts not found, using system font for header")
+            
+            # Check if Puffin Liquid exists and use it for titles
             if os.path.exists(puffin_liquid_path) and os.path.getsize(puffin_liquid_path) > 1000:
                 self.font_title = pygame.font.Font(puffin_liquid_path, 72)
                 self.font_subtitle = pygame.font.Font(puffin_liquid_path, 48)
                 self.font_large = pygame.font.Font(puffin_liquid_path, 36)
-                logger.info("Using Puffin Liquid for headlines")
+                logger.info("Using Puffin Liquid for titles")
             else:
-                # Fallback to system font for headlines
+                # Fallback to system font for titles
                 self.font_title = pygame.font.SysFont('arial', 72, bold=True)
                 self.font_subtitle = pygame.font.SysFont('arial', 48, bold=True)
                 self.font_large = pygame.font.SysFont('arial', 36, bold=True)
-                logger.warning("Puffin Liquid not found, using system font for headlines")
+                logger.warning("Puffin Liquid not found, using system font for titles")
             
             # Use Puffin Regular for body text
             if os.path.exists(puffin_regular_path) and os.path.getsize(puffin_regular_path) > 1000:
@@ -221,6 +309,9 @@ class DoomBoxKiosk:
         except Exception as e:
             logger.error(f"Font setup error: {e}")
             # Ultimate fallback
+            self.font_doom_left = pygame.font.Font(None, 72)
+            self.font_doom_right = pygame.font.Font(None, 72)
+            self.font_doom_text = pygame.font.Font(None, 72)
             self.font_title = pygame.font.Font(None, 72)
             self.font_subtitle = pygame.font.Font(None, 48)
             self.font_large = pygame.font.Font(None, 36)
@@ -407,6 +498,48 @@ class DoomBoxKiosk:
             logger.error(f"Database query error: {e}")
             return [("PLAYER", 0) for _ in range(3)]  # Dummy data
 
+    def setup_icons(self):
+        """Load game icons and graphics"""
+        try:
+            self.icons_dir = os.path.join(self.base_dir, 'icons')
+            
+            # Load skull icon
+            skull_path = os.path.join(self.icons_dir, 'pixelart_skull.png')
+            if os.path.exists(skull_path):
+                self.skull_icon = pygame.image.load(skull_path).convert_alpha()
+                self.skull_icon = pygame.transform.scale(self.skull_icon, (64, 64))
+                logger.info("Loaded skull icon")
+            else:
+                self.skull_icon = None
+                logger.warning("Skull icon not found")
+            
+            # Load trophy icon
+            trophy_path = os.path.join(self.icons_dir, 'solid', 'trophy.png')
+            if os.path.exists(trophy_path):
+                self.trophy_icon = pygame.image.load(trophy_path).convert_alpha()
+                self.trophy_icon = pygame.transform.scale(self.trophy_icon, (32, 32))
+                logger.info("Loaded trophy icon")
+            else:
+                self.trophy_icon = None
+                logger.warning("Trophy icon not found")
+            
+            # Load crown icon
+            crown_path = os.path.join(self.icons_dir, 'solid', 'crown.png')
+            if os.path.exists(crown_path):
+                self.crown_icon = pygame.image.load(crown_path).convert_alpha()
+                self.crown_icon = pygame.transform.scale(self.crown_icon, (32, 32))
+                logger.info("Loaded crown icon")
+            else:
+                self.crown_icon = None
+                logger.warning("Crown icon not found")
+            
+            logger.info("Icon setup complete")
+        except Exception as e:
+            logger.error(f"Icon setup error: {e}")
+            self.skull_icon = None
+            self.trophy_icon = None
+            self.crown_icon = None
+
     def draw_main_screen(self):
         """Draw the main kiosk screen with purple color scheme and visible video background"""
         
@@ -438,15 +571,12 @@ class DoomBoxKiosk:
         header_overlay.set_alpha(160)  # Lighter for video visibility
         self.screen.blit(header_overlay, (header_rect[0], header_rect[1]))
 
-        # Main title
+        # Main title with Doom 2016 font and skull icons
         title_y = 25
-        self.ui.draw_text_with_shadow(
+        self.draw_doom_header(
             "Shmegl's Slayers",
-            self.font_title,
-            self.ui.COLORS['LIGHT_PURPLE'],
-            (self.DISPLAY_SIZE[0]//2 - self.font_title.size("Shmegl's Slayers")[0]//2, title_y),
-            self.ui.COLORS['OFF_BLACK'],
-            (3, 3)
+            self.DISPLAY_SIZE[0]//2,
+            title_y
         )
 
         # Subtitle
@@ -569,15 +699,40 @@ class DoomBoxKiosk:
             2
         )
 
-        # Leaderboard title with icons
+        # Leaderboard title with trophy icon
         scores_title_y = content_y + self.ui.LAYOUT['PADDING']
+        title_text = "TOP SCORES"
+        title_width = self.font_large.size(title_text)[0]
+        
+        # Calculate positions for centered layout with trophy icons
+        trophy_spacing = 40 if self.trophy_icon else 0
+        total_width = title_width + (trophy_spacing * 2)
+        start_x = scores_section_x + scores_section_width//2 - total_width//2
+        
+        # Draw left trophy icon
+        if self.trophy_icon:
+            trophy_y = scores_title_y + 5  # Slightly lower to align with text
+            # Tint the trophy icon gold
+            trophy_tinted = self.trophy_icon.copy()
+            trophy_tinted.fill(self.ui.COLORS['GOLD_PURPLE'], special_flags=pygame.BLEND_MULT)
+            self.screen.blit(trophy_tinted, (start_x, trophy_y))
+        
+        # Draw title text
         self.ui.draw_text_with_shadow(
-            "🏆 TOP SCORES 🏆",
+            title_text,
             self.font_large,
             self.ui.COLORS['GOLD_PURPLE'],
-            (scores_section_x + scores_section_width//2 - self.font_large.size("🏆 TOP SCORES 🏆")[0]//2, scores_title_y),
+            (start_x + trophy_spacing, scores_title_y),
             self.ui.COLORS['OFF_BLACK']
         )
+        
+        # Draw right trophy icon
+        if self.trophy_icon:
+            trophy_y = scores_title_y + 5  # Slightly lower to align with text
+            # Tint the trophy icon gold
+            trophy_tinted = self.trophy_icon.copy()
+            trophy_tinted.fill(self.ui.COLORS['GOLD_PURPLE'], special_flags=pygame.BLEND_MULT)
+            self.screen.blit(trophy_tinted, (start_x + trophy_spacing + title_width, trophy_y))
 
         # Score entries
         scores = self.get_top_scores(8)  # Show top 8 for clean layout
@@ -587,32 +742,33 @@ class DoomBoxKiosk:
         for i, (player_name, score) in enumerate(scores):
             entry_y = scores_start_y + i * line_height
             
-            # Rank colors with purple theme and icons
+            # Rank colors with purple theme and proper icons
             if i == 0:
                 rank_color = self.ui.COLORS['GOLD_PURPLE']
                 name_color = self.ui.COLORS['GOLD_PURPLE']
-                icon = "👑"
+                rank_icon = self.crown_icon
             elif i == 1:
                 rank_color = self.ui.COLORS['LIGHT_PURPLE']
                 name_color = self.ui.COLORS['LIGHT_PURPLE']
-                icon = "🥈"
+                rank_icon = None  # No specific icon for 2nd place
             elif i == 2:
                 rank_color = self.ui.COLORS['WARNING_PURPLE']
                 name_color = self.ui.COLORS['WARNING_PURPLE']
-                icon = "🥉"
+                rank_icon = None  # No specific icon for 3rd place
             else:
                 rank_color = self.ui.COLORS['MEDIUM_GRAY']
                 name_color = self.ui.COLORS['OFF_WHITE']
-                icon = "💀"  # Doom-themed icon for other entries
+                rank_icon = None
 
-            # Icon
-            self.ui.draw_text_with_shadow(
-                icon,
-                self.font_medium,
-                rank_color,
-                (scores_section_x + 15, entry_y),
-                self.ui.COLORS['OFF_BLACK']
-            )
+            # Draw rank icon (only for first place)
+            icon_offset = 0
+            if rank_icon:
+                icon_y = entry_y + 8  # Center with text
+                # Tint the crown icon gold
+                crown_tinted = rank_icon.copy()
+                crown_tinted.fill(self.ui.COLORS['GOLD_PURPLE'], special_flags=pygame.BLEND_MULT)
+                self.screen.blit(crown_tinted, (scores_section_x + 15, icon_y))
+                icon_offset = 40
 
             # Rank number
             rank_text = f"{i+1}."
@@ -620,7 +776,7 @@ class DoomBoxKiosk:
                 rank_text,
                 self.font_medium,
                 rank_color,
-                (scores_section_x + 55, entry_y),
+                (scores_section_x + 15 + icon_offset, entry_y),
                 self.ui.COLORS['OFF_BLACK']
             )
 
@@ -630,7 +786,7 @@ class DoomBoxKiosk:
                 display_name,
                 self.font_medium,
                 name_color,
-                (scores_section_x + 105, entry_y),
+                (scores_section_x + 65 + icon_offset, entry_y),
                 self.ui.COLORS['OFF_BLACK']
             )
 
