@@ -19,10 +19,22 @@ import psutil
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import paho.mqtt.client as mqtt
+import logging
 
 class DoomBoxKiosk:
     def __init__(self):
         print("Initializing DoomBox Kiosk...")
+        
+        # Setup logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('/opt/doombox/logs/kiosk.log'),
+                logging.StreamHandler()
+            ]
+        )
+        self.logger = logging.getLogger(__name__)
         
         # Initialize pygame
         pygame.init()
@@ -30,7 +42,13 @@ class DoomBoxKiosk:
         
         # Display settings - Radxa Zero at 1280x960
         self.DISPLAY_SIZE = (1280, 960)
-        self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
+        try:
+            self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
+        except pygame.error as e:
+            self.logger.error(f"Failed to set fullscreen mode: {e}")
+            # Fallback to windowed mode
+            self.screen = pygame.display.set_mode(self.DISPLAY_SIZE)
+        
         pygame.display.set_caption("shmegl's DoomBox")
         pygame.mouse.set_visible(False)  # Hide mouse cursor
         
@@ -43,6 +61,7 @@ class DoomBoxKiosk:
         self.YELLOW = (255, 255, 0)
         self.GRAY = (128, 128, 128)
         self.DARK_RED = (139, 0, 0)
+        self.PURPLE = (138, 43, 226)
         
         # Paths
         self.base_dir = "/opt/doombox"
@@ -58,6 +77,7 @@ class DoomBoxKiosk:
         self.game_running = False
         self.game_process = None
         self.last_check_time = time.time()
+        self.running = True
         
         # Controller
         self.controller = None
@@ -75,7 +95,7 @@ class DoomBoxKiosk:
         self.last_konami_input = time.time()
         
         # Configuration
-        self.form_url = "https://your-username.github.io/doombox-form/"
+        self.form_url = "https://shmeglsdoombox.spoon.rip/"
         self.mqtt_enabled = True
         
         # Initialize database
@@ -91,7 +111,10 @@ class DoomBoxKiosk:
         # Fonts
         self.setup_fonts()
         
-        print("DoomBox Kiosk initialized successfully!")
+        # Clock for FPS limiting
+        self.clock = pygame.time.Clock()
+        
+        self.logger.info("DoomBox Kiosk initialized successfully!")
 
     def setup_fonts(self):
         """Initialize pygame fonts"""
@@ -102,8 +125,8 @@ class DoomBoxKiosk:
             self.font_tiny = pygame.font.Font(None, 24)
         except:
             # Fallback to default font
-            self.font_large = pygame.font.SysFont('arial', 72)
-            self.font_medium = pygame.font.SysFont('arial', 48)
+            self.font_large = pygame.font.SysFont('arial', 72, bold=True)
+            self.font_medium = pygame.font.SysFont('arial', 48, bold=True)
             self.font_small = pygame.font.SysFont('arial', 32)
             self.font_tiny = pygame.font.SysFont('arial', 24)
 
@@ -124,9 +147,9 @@ class DoomBoxKiosk:
             ''')
             conn.commit()
             conn.close()
-            print("Database initialized successfully")
+            self.logger.info("Database initialized successfully")
         except Exception as e:
-            print(f"Database initialization error: {e}")
+            self.logger.error(f"Database initialization error: {e}")
 
     def generate_qr_code(self):
         """Generate QR code for the registration form"""
@@ -145,15 +168,23 @@ class DoomBoxKiosk:
             qr_img = qr_img.resize((250, 250))
             
             # Convert PIL image to pygame surface
-            qr_surface = pygame.image.fromstring(qr_img.tobytes(), qr_img.size, qr_img.mode)
-            print("QR code generated successfully")
+            mode = qr_img.mode
+            size = qr_img.size
+            data = qr_img.tobytes()
+            qr_surface = pygame.image.fromstring(data, size, mode)
+            
+            self.logger.info("QR code generated successfully")
             return qr_surface
         except Exception as e:
-            print(f"QR code generation error: {e}")
+            self.logger.error(f"QR code generation error: {e}")
             # Create placeholder surface
             surface = pygame.Surface((250, 250))
             surface.fill(self.WHITE)
             pygame.draw.rect(surface, self.BLACK, (10, 10, 230, 230), 5)
+            font = pygame.font.Font(None, 36)
+            text = font.render("QR ERROR", True, self.BLACK)
+            text_rect = text.get_rect(center=(125, 125))
+            surface.blit(text, text_rect)
             return surface
 
     def setup_mqtt(self):
@@ -165,28 +196,28 @@ class DoomBoxKiosk:
             # Connect to local mosquitto broker
             self.mqtt_client.connect("localhost", 1883, 60)
             self.mqtt_client.loop_start()
-            print("MQTT client setup successful")
+            self.logger.info("MQTT client setup successful")
         except Exception as e:
-            print(f"MQTT setup failed: {e}")
+            self.logger.error(f"MQTT setup failed: {e}")
             self.mqtt_enabled = False
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
         """MQTT connection callback"""
         if rc == 0:
-            print("MQTT connected successfully")
+            self.logger.info("MQTT connected successfully")
             client.subscribe("doombox/start_game")
         else:
-            print(f"MQTT connection failed with code {rc}")
+            self.logger.error(f"MQTT connection failed with code {rc}")
 
     def on_mqtt_message(self, client, userdata, msg):
         """MQTT message callback"""
         try:
             data = json.loads(msg.payload.decode())
             player_name = data.get('player_name', 'Unknown')
-            print(f"MQTT: Starting game for {player_name}")
+            self.logger.info(f"MQTT: Starting game for {player_name}")
             self.start_game(player_name)
         except Exception as e:
-            print(f"MQTT message error: {e}")
+            self.logger.error(f"MQTT message error: {e}")
 
     def setup_controller(self):
         """Setup DualShock 4 controller"""
@@ -195,19 +226,19 @@ class DoomBoxKiosk:
             pygame.joystick.init()
             
             joystick_count = pygame.joystick.get_count()
-            print(f"Found {joystick_count} joystick(s)")
+            self.logger.info(f"Found {joystick_count} joystick(s)")
             
             if joystick_count > 0:
                 self.controller = pygame.joystick.Joystick(0)
                 self.controller.init()
                 controller_name = self.controller.get_name()
-                print(f"Controller connected: {controller_name}")
+                self.logger.info(f"Controller connected: {controller_name}")
                 return True
             else:
-                print("No controller found")
+                self.logger.info("No controller found")
                 return False
         except Exception as e:
-            print(f"Controller setup error: {e}")
+            self.logger.error(f"Controller setup error: {e}")
             return False
 
     def get_top_scores(self, limit=10):
@@ -225,7 +256,7 @@ class DoomBoxKiosk:
             conn.close()
             return scores
         except Exception as e:
-            print(f"Error getting scores: {e}")
+            self.logger.error(f"Error getting scores: {e}")
             return []
 
     def add_score(self, player_name, score, level=1, time_played=0):
@@ -239,9 +270,9 @@ class DoomBoxKiosk:
             ''', (player_name, score, datetime.now(), level, time_played))
             conn.commit()
             conn.close()
-            print(f"Score added: {player_name} - {score} points")
+            self.logger.info(f"Score added: {player_name} - {score} points")
         except Exception as e:
-            print(f"Error adding score: {e}")
+            self.logger.error(f"Error adding score: {e}")
 
     def draw_screen(self):
         """Draw the main kiosk screen"""
@@ -271,6 +302,11 @@ class DoomBoxKiosk:
         qr_label = self.font_small.render("Scan to Play", True, self.WHITE)
         qr_label_x = qr_x + 125 - qr_label.get_width() // 2
         self.screen.blit(qr_label, (qr_label_x, qr_y + 260))
+        
+        # URL text below QR code
+        url_text = self.font_tiny.render(self.form_url, True, self.GRAY)
+        url_x = qr_x + 125 - url_text.get_width() // 2
+        self.screen.blit(url_text, (url_x, qr_y + 290))
         
         # Top scores (right side)
         scores_x = 450
@@ -322,6 +358,13 @@ class DoomBoxKiosk:
         # Version info
         version_text = self.font_tiny.render("DoomBox v1.0", True, self.GRAY)
         self.screen.blit(version_text, (10, 10))
+        
+        # MQTT status
+        mqtt_status = "MQTT: Connected" if self.mqtt_enabled else "MQTT: Disabled"
+        mqtt_color = self.GREEN if self.mqtt_enabled else self.YELLOW
+        mqtt_text = self.font_tiny.render(mqtt_status, True, mqtt_color)
+        mqtt_x = self.DISPLAY_SIZE[0] // 2 - mqtt_text.get_width() // 2
+        self.screen.blit(mqtt_text, (mqtt_x, self.DISPLAY_SIZE[1] - 25))
         
         pygame.display.flip()
 
@@ -387,20 +430,20 @@ class DoomBoxKiosk:
         
         # Check if sequence matches
         if self.konami_input == self.konami_sequence:
-            print("Konami code activated! Starting test game...")
+            self.logger.info("Konami code activated! Starting test game...")
             self.start_game("TEST_PLAYER")
             self.konami_input = []
 
     def start_game(self, player_name):
         """Start DOOM game with player name"""
         if self.game_running:
-            print("Game already running!")
+            self.logger.info("Game already running!")
             return
         
         self.current_player = player_name
         self.game_running = True
         
-        print(f"Starting DOOM for player: {player_name}")
+        self.logger.info(f"Starting DOOM for player: {player_name}")
         
         # Launch DOOM in a separate thread
         game_thread = threading.Thread(target=self._run_doom, args=(player_name,))
@@ -421,7 +464,7 @@ class DoomBoxKiosk:
                 '+name', player_name
             ]
             
-            print(f"Launching DOOM: {' '.join(doom_cmd)}")
+            self.logger.info(f"Launching DOOM: {' '.join(doom_cmd)}")
             
             # Log command to file
             with open(f"{self.logs_dir}/doom.log", "a") as log_file:
@@ -449,14 +492,14 @@ class DoomBoxKiosk:
             if not player_name.startswith("TEST_"):
                 self.add_score(player_name, score, time_played=play_time)
             
-            print(f"Game ended. Score: {score}, Play time: {play_time}s")
+            self.logger.info(f"Game ended. Score: {score}, Play time: {play_time}s")
             
             # Log results
             with open(f"{self.logs_dir}/doom.log", "a") as log_file:
                 log_file.write(f"{datetime.now()}: Game ended - Score: {score}, Time: {play_time}s\n")
             
         except Exception as e:
-            print(f"Error running DOOM: {e}")
+            self.logger.error(f"Error running DOOM: {e}")
             with open(f"{self.logs_dir}/doom.log", "a") as log_file:
                 log_file.write(f"{datetime.now()}: ERROR - {e}\n")
         finally:
@@ -481,59 +524,4 @@ class DoomBoxKiosk:
             if stdout:
                 # Look for any numbers that might be scores
                 import re
-                numbers = re.findall(r'\b\d+\b', stdout.decode('utf-8', errors='ignore'))
-                if numbers:
-                    # Use the largest number found as a potential score
-                    potential_score = max(int(n) for n in numbers if int(n) > 100)
-                    if potential_score > base_score:
-                        base_score = potential_score
-        except:
-            pass
-        
-        return base_score
-
-    def check_for_new_players(self):
-        """Check for new players via webhook/API/file"""
-        current_time = time.time()
-        
-        # Only check every 2 seconds to avoid excessive file I/O
-        if current_time - self.last_check_time < 2.0:
-            return
-        
-        self.last_check_time = current_time
-        
-        try:
-            # Check for trigger file from webhook
-            trigger_file = f"{self.base_dir}/new_player.json"
-            if os.path.exists(trigger_file):
-                with open(trigger_file, 'r') as f:
-                    data = json.load(f)
-                
-                player_name = data.get('player_name', 'Unknown')
-                print(f"New player from file: {player_name}")
-                self.start_game(player_name)
-                
-                # Remove trigger file
-                os.remove(trigger_file)
-                
-            # Also check for API endpoint (if implemented)
-            # This would be a simple HTTP check to your GitHub Pages site
-            
-        except Exception as e:
-            # Don't spam console with errors
-            pass
-
-    def cleanup(self):
-        """Clean up resources"""
-        print("Cleaning up DoomBox resources...")
-        
-        # Stop MQTT client
-        if hasattr(self, 'mqtt_client') and self.mqtt_enabled:
-            try:
-                self.mqtt_client.loop_stop()
-                self.mqtt_client.disconnect()
-            except:
-                pass
-        
-        # Kill any running DOOM process
-        if self.gam
+                numbers = re.findall(r'\b\d+
