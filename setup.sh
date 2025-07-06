@@ -174,13 +174,20 @@ source venv/bin/activate
 echo -e "${YELLOW}Installing Python dependencies...${NC}"
 pip install --upgrade pip
 
+# Force reinstall of NumPy and OpenCV to ensure compatibility
+echo -e "${YELLOW}Ensuring NumPy 1.x compatibility...${NC}"
+pip uninstall -y numpy opencv-python 2>/dev/null || true
+pip install "numpy<2.0.0"
+
 # Check if requirements.txt exists in the repo
 if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
     echo -e "${YELLOW}Installing from requirements.txt...${NC}"
     pip install -r "$SCRIPT_DIR/requirements.txt"
 else
     echo -e "${YELLOW}Installing default Python packages...${NC}"
-    pip install pygame opencv-python numpy paho-mqtt requests
+    # Install NumPy 1.x first to avoid compatibility issues with OpenCV
+    pip install "numpy<2.0.0"
+    pip install pygame opencv-python paho-mqtt requests
 fi
 
 echo -e "${YELLOW}Downloading DOOM.WAD...${NC}"
@@ -335,6 +342,31 @@ cd "$SCRIPT_DIR/doom"
 "$SCRIPT_DIR/lzdoom" -iwad DOOM.WAD
 EOF
 
+cat >"$DOOMBOX_DIR/fix_numpy.sh" <<'EOF'
+#!/bin/bash
+# Fix NumPy compatibility issues with OpenCV
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+cd "$SCRIPT_DIR"
+
+echo "Fixing NumPy compatibility issues..."
+source venv/bin/activate
+
+echo "Uninstalling incompatible packages..."
+pip uninstall -y numpy opencv-python 2>/dev/null || true
+
+echo "Installing NumPy 1.x..."
+pip install "numpy<2.0.0"
+
+echo "Reinstalling OpenCV..."
+pip install opencv-python==4.8.1.78
+
+echo "Testing import..."
+python3 -c "import cv2; print(f'OpenCV version: {cv2.__version__}')"
+python3 -c "import numpy; print(f'NumPy version: {numpy.__version__}')"
+
+echo "Fix complete!"
+EOF
+
 cat >"$DOOMBOX_DIR/debug_controller.sh" <<'EOF'
 #!/bin/bash
 echo "DualShock 4 Controller Debug Info"
@@ -442,6 +474,7 @@ echo -e "• test_kiosk.sh - Test kiosk application"
 echo -e "• test_doom.sh - Test DOOM engine"
 echo -e "• debug_controller.sh - Controller debugging"
 echo -e "• view_scores.sh - View high scores"
+echo -e "• fix_numpy.sh - Fix NumPy compatibility issues"
 echo -e ""
 echo -e "DOOM files:"
 echo -e "• DOOM.WAD location: $DOOM_DIR/DOOM.WAD"
