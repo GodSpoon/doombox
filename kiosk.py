@@ -459,10 +459,10 @@ class DoomBoxKiosk:
         # Subtitle
         subtitle_y = title_y + 80
         self.ui.draw_text_with_shadow(
-            "Get the high score on Doom & get a free tattoo from Petra",
+            "Get the high score on Doom to win a free tattoo from Petra",
             self.font_subtitle,
             self.ui.COLORS['WARNING_PURPLE'],
-            (self.DISPLAY_SIZE[0]//2 - self.font_subtitle.size("Get the high score on Doom & get a free tattoo from Petra")[0]//2, subtitle_y),
+            (self.DISPLAY_SIZE[0]//2 - self.font_subtitle.size("Get the high score on Doom to win a free tattoo from Petra")[0]//2, subtitle_y),
             self.ui.COLORS['OFF_BLACK'],
             (2, 2)
         )
@@ -490,18 +490,24 @@ class DoomBoxKiosk:
         qr_overlay.set_alpha(160)  # Match header opacity
         self.screen.blit(qr_overlay, (qr_section_rect[0], qr_section_rect[1]))
 
-        # QR section title
+        # QR section title - split into two lines
         qr_title_y = content_y + self.ui.LAYOUT['PADDING']
-        self.ui.draw_text_with_shadow(
-            "Scan the QR code to enter your name and play",
-            self.font_medium,
-            self.ui.COLORS['PURPLE_BLUE'],
-            (qr_section_x + qr_section_width//2 - self.font_medium.size("Scan the QR code to enter your name and play")[0]//2, qr_title_y),
-            self.ui.COLORS['OFF_BLACK']
-        )
+        qr_title_lines = [
+            "Scan the QR code to enter",
+            "your name and play"
+        ]
+        for i, line in enumerate(qr_title_lines):
+            line_y = qr_title_y + i * 30
+            self.ui.draw_text_with_shadow(
+                line,
+                self.font_medium,
+                self.ui.COLORS['PURPLE_BLUE'],
+                (qr_section_x + qr_section_width//2 - self.font_medium.size(line)[0]//2, line_y),
+                self.ui.COLORS['OFF_BLACK']
+            )
 
-        # QR Code - Properly centered in the section
-        qr_y = qr_title_y + 50
+        # QR Code - Properly centered in the section with extra space for two-line title
+        qr_y = qr_title_y + 80
         qr_x = qr_section_x + (qr_section_width - self.ui.LAYOUT['QR_SIZE']) // 2
         
         # QR background with purple tint
