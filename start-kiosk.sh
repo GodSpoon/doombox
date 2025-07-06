@@ -37,10 +37,17 @@ check_process() {
 # Function to wait for X11 to be ready
 wait_for_x11() {
     echo -e "${YELLOW}Waiting for X11 to be ready...${NC}"
-    while ! xset q &>/dev/null; do
+    local timeout=30
+    while [ $timeout -gt 0 ]; do
+        if xset q &>/dev/null; then
+            echo -e "${GREEN}X11 is ready${NC}"
+            return 0
+        fi
         sleep 1
+        ((timeout--))
     done
-    echo -e "${GREEN}X11 is ready${NC}"
+    echo -e "${RED}X11 not ready after 30 seconds, continuing anyway...${NC}"
+    return 1
 }
 
 # Function to setup display
@@ -130,8 +137,11 @@ main() {
     
     # Wait for X11 if we're in a graphical environment
     if [ -n "$DISPLAY" ]; then
-        wait_for_x11
-        setup_display
+        if wait_for_x11; then
+            setup_display
+        else
+            echo -e "${YELLOW}Proceeding without X11 display setup${NC}"
+        fi
     fi
     
     # Check dependencies

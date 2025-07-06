@@ -47,7 +47,7 @@ class GameLauncher:
         
         # Doom configuration
         self.doom_config = {
-            'executable': 'dsda-doom',
+            'executable': self._find_doom_executable(),
             'iwad': '/usr/share/games/doom/doom1.wad',  # Shareware DOOM
             'resolution': '640x480',
             'skill': '3',  # Hurt Me Plenty
@@ -63,6 +63,11 @@ class GameLauncher:
         # Signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        
+        # Initialize database
+        self.setup_database()
+        
+        logger.info("GameLauncher initialized")
     
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals"""
@@ -70,14 +75,81 @@ class GameLauncher:
         self.stop_game()
         sys.exit(0)
     
+    def _find_doom_executable(self) -> str:
+        """Find dsda-doom executable in common locations"""
+        possible_paths = [
+            '/usr/games/dsda-doom',
+            '/usr/local/games/dsda-doom',
+            '/usr/bin/dsda-doom',
+            '/usr/local/bin/dsda-doom'
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                logger.info(f"Found dsda-doom at: {path}")
+                return path
+        
+        # Check if it's in PATH
+        try:
+            result = subprocess.run(['which', 'dsda-doom'], capture_output=True, text=True)
+            if result.returncode == 0:
+                path = result.stdout.strip()
+                logger.info(f"Found dsda-doom in PATH: {path}")
+                return path
+        except:
+            pass
+        
+        logger.error("dsda-doom not found in any common locations")
+        return '/usr/games/dsda-doom'  # fallback to common location
+    
+    def setup_database(self):
+        """Initialize the scores database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Create scores table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS scores (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_name TEXT NOT NULL,
+                    score INTEGER NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Create game sessions table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS game_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_name TEXT NOT NULL,
+                    event TEXT NOT NULL,
+                    exit_code INTEGER,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            conn.commit()
+            conn.close()
+            logger.info("Database initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Database setup error: {e}")
+    
     def check_dependencies(self) -> bool:
         """Check if required dependencies are available"""
         try:
-            # Check for dsda-doom
-            result = subprocess.run(['which', 'dsda-doom'], capture_output=True, text=True)
-            if result.returncode != 0:
-                logger.error("dsda-doom not found. Please install dsda-doom package.")
+            # Check for dsda-doom executable
+            doom_exe = self.doom_config['executable']
+            if not os.path.exists(doom_exe) and doom_exe != 'dsda-doom':
+                logger.error(f"dsda-doom not found at {doom_exe}")
                 return False
+            elif doom_exe == 'dsda-doom':
+                # Check if it's in PATH
+                result = subprocess.run(['which', 'dsda-doom'], capture_output=True, text=True)
+                if result.returncode != 0:
+                    logger.error("dsda-doom not found in PATH. Please install dsda-doom package.")
+                    return False
             
             # Check for DOOM WAD file
             if not os.path.exists(self.doom_config['iwad']):

@@ -70,6 +70,11 @@ shmegl-doombox/
 
 ## Key Implementation Notes
 
+connect to and check a Radxa single-board computer over SSH using:
+- Host: 10.0.0.234
+- User: root
+- Authentication: SSH public key (no password)
+
 ### Hardware Constraints
 - ARM64 architecture (use appropriate packages)
 - Limited RAM (3.7GB total, ~289MB used at idle)

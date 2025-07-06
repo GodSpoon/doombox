@@ -52,21 +52,20 @@ chmod +x /root/doombox/start-kiosk.sh
 
 # Create log directory
 mkdir -p /var/log
-touch /var/log/doombox-autostart.log
 
 echo -e "${GREEN}✓ DietPi AutoStart configured successfully!${NC}"
 echo -e ""
 echo -e "${BLUE}Configuration Summary:${NC}"
 echo -e "• AutoStart mode: Custom (index 7)"
-echo -e "• Script location: /var/lib/dietpi/dietpi-autostart/custom.sh"
+echo -e "• Custom script: /var/lib/dietpi/dietpi-autostart/custom.sh"
+echo -e "• Calls: /root/doombox/start-kiosk.sh"
 echo -e "• DoomBox directory: /root/doombox"
-echo -e "• Log file: /var/log/doombox-autostart.log"
 echo -e ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo -e "1. Reboot the system to test autologin"
 echo -e "2. The DoomBox kiosk should start automatically"
 echo -e "3. Check logs if needed:"
-echo -e "   • AutoStart log: tail -f /var/log/doombox-autostart.log"
 echo -e "   • Kiosk log: tail -f /root/doombox/logs/kiosk.log"
+echo -e "   • Startup log: tail -f /root/doombox/logs/kiosk-startup.log"
 echo -e ""
 echo -e "${GREEN}Ready to reboot and test!${NC}"

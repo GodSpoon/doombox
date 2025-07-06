@@ -263,4 +263,15 @@ doombox/
   - Ready for MQTT server integration on separate host for remote game triggering
 - **Next Phase**: Test autologin functionality and set up MQTT communication
 
+### 2025-07-06: Fixed X11 Timeout and Game Launcher Issues
+- **Issue**: Custom script was waiting indefinitely for X11 to start, blocking kiosk launch
+- **Solution**: Added 30-second timeout to X11 wait with graceful fallback
+- **Issue**: Game launcher couldn't find dsda-doom in `/usr/games/` directory
+- **Solution**: Enhanced `_find_doom_executable()` to check common locations including `/usr/games/dsda-doom`
+- **Improvements**:
+  - Better error handling for missing X11 display
+  - Robust executable path detection for ARM64 systems
+  - Added missing `setup_database()` method for score tracking
+  - Simplified DietPi custom script to just call `start-kiosk.sh`
+
 *Built for satan 🖤*
