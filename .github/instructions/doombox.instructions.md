@@ -75,6 +75,12 @@ connect to and check a Radxa single-board computer over SSH using:
 - User: root
 - Authentication: SSH public key (no password)
 
+After making changes, push to GitHub and pull on the Radxa device to test via commands like:
+```bash
+git add . && git commit -m "[message]" && git push
+ssh root@10.0.0.234 "cd /root/doombox && git pull && systemctl restart doombox-kiosk.service"
+```
+
 ### Hardware Constraints
 - ARM64 architecture (use appropriate packages)
 - Limited RAM (3.7GB total, ~289MB used at idle)

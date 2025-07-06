@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 import cv2
 import numpy as np
+from fallback_video_player import create_video_player
 
 # Set up logging
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -175,8 +176,7 @@ class DoomBoxKiosk:
         # Initialize components
         self.setup_qr_code()
         self.setup_database()
-        self.load_background_video()
-        self.setup_icons()
+        self.setup_hardware_video_player()
         
         logger.info("DoomBox Kiosk initialized successfully!")
 
@@ -328,98 +328,37 @@ class DoomBoxKiosk:
         except Exception as e:
             logger.error(f"Database setup error: {e}")
 
-    def load_background_video(self):
-        """Load and setup background video cycling through all available videos in random order"""
+    def setup_hardware_video_player(self):
+        """Setup optimized video player with hardware acceleration fallback"""
         try:
-            self.video_files = []
-            if os.path.exists(self.videos_dir):
-                # Get all video files and shuffle them for random order
-                all_files = [f for f in os.listdir(self.videos_dir) if f.endswith(('.mp4', '.avi', '.mov'))]
-                self.video_files = sorted(all_files)  # Sort first for consistent behavior
-                random.shuffle(self.video_files)  # Then shuffle for random order
+            # Try to use hardware acceleration first, fall back to cached/simple players
+            self.video_player = create_video_player(
+                video_dir=self.videos_dir,
+                display_size=self.DISPLAY_SIZE,
+                prefer_hardware=True
+            )
             
-            if self.video_files:
-                self.current_video_index = 0
-                self.video_cap = None
-                self.video_frame_count = 0
-                self.current_video_frame = 0
-                self.video_switch_timer = 0
-                self.video_switch_interval = 300  # Switch video every 10 seconds at 30fps
+            if self.video_player:
+                logger.info("Video player started successfully")
+                stats = self.video_player.get_stats()
+                logger.info(f"Video player stats: {stats}")
                 
-                # Load first video
-                self.load_next_video()
-                logger.info(f"Loaded {len(self.video_files)} background videos in random order")
+                # Log performance info
+                if 'hardware_acceleration' in stats:
+                    if stats['hardware_acceleration']:
+                        logger.info("✅ Using hardware-accelerated video decoding")
+                    else:
+                        logger.warning("⚠️ Using software video decoding - performance may be limited")
+                
+                if 'cache_frames' in stats:
+                    logger.info(f"📹 Cached {stats['cache_frames']} frames ({stats.get('cache_size_mb', 0):.1f} MB)")
+                    
             else:
-                self.video_cap = None
-                self.video_files = []
-                logger.info("No background videos found")
-        except Exception as e:
-            logger.error(f"Video setup error: {e}")
-            self.video_cap = None
-            self.video_files = []
-
-    def load_next_video(self):
-        """Load the next video in the random sequence"""
-        try:
-            if not self.video_files:
-                return
+                logger.warning("Failed to start any video player")
                 
-            if self.video_cap:
-                self.video_cap.release()
-            
-            video_path = os.path.join(self.videos_dir, self.video_files[self.current_video_index])
-            self.video_cap = cv2.VideoCapture(video_path)
-            self.video_frame_count = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            self.current_video_frame = 0
-            
-            logger.info(f"Loaded video: {self.video_files[self.current_video_index]}")
-            
-            # Move to next video in the shuffled list
-            self.current_video_index = (self.current_video_index + 1) % len(self.video_files)
-            
-            # If we've cycled through all videos, shuffle the list again for a new random order
-            if self.current_video_index == 0:
-                random.shuffle(self.video_files)
-                logger.info("Reshuffled video playlist for new random order")
-            
         except Exception as e:
-            logger.error(f"Error loading video: {e}")
-            self.video_cap = None
-
-    def get_video_frame(self):
-        """Get current video frame with cycling and better visibility"""
-        if not self.video_cap or not self.video_files:
-            return None
-        
-        try:
-            # Check if we should switch to next video
-            self.video_switch_timer += 1
-            if self.video_switch_timer >= self.video_switch_interval:
-                self.video_switch_timer = 0
-                self.load_next_video()
-                if not self.video_cap:
-                    return None
-            
-            ret, frame = self.video_cap.read()
-            if not ret:
-                # If video ended, load next video
-                self.load_next_video()
-                if self.video_cap:
-                    ret, frame = self.video_cap.read()
-                else:
-                    return None
-            
-            if ret:
-                # Convert to pygame surface
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame = cv2.resize(frame, self.DISPLAY_SIZE)
-                return pygame.surfarray.make_surface(frame.swapaxes(0, 1))
-        except Exception as e:
-            logger.error(f"Video frame error: {e}")
-            # Try to load next video on error
-            self.load_next_video()
-        
-        return None
+            logger.error(f"Error setting up video player: {e}")
+            self.video_player = None
 
     def get_top_scores(self, limit=10):
         """Get top scores from database"""
@@ -552,17 +491,25 @@ class DoomBoxKiosk:
     def draw_main_screen(self):
         """Draw the main kiosk screen with purple color scheme and visible video background"""
         
-        # Background - Make video more visible
-        video_frame = self.get_video_frame()
-        if video_frame:
-            # Apply subtle purple tint to video instead of heavy darkening
-            self.screen.blit(video_frame, (0, 0))
-            
-            # Light purple overlay for better contrast but still visible video
-            video_overlay = pygame.Surface(self.DISPLAY_SIZE)
-            video_overlay.fill(self.ui.COLORS['DARK_PURPLE'])
-            video_overlay.set_alpha(60)  # Much lighter overlay
-            self.screen.blit(video_overlay, (0, 0))
+        # Background - Hardware-accelerated video
+        if self.video_player:
+            video_frame = self.video_player.get_frame()
+            if video_frame:
+                # Apply subtle purple tint to video instead of heavy darkening
+                self.screen.blit(video_frame, (0, 0))
+                
+                # Light purple overlay for better contrast but still visible video
+                video_overlay = pygame.Surface(self.DISPLAY_SIZE)
+                video_overlay.fill(self.ui.COLORS['DARK_PURPLE'])
+                video_overlay.set_alpha(60)  # Much lighter overlay
+                self.screen.blit(video_overlay, (0, 0))
+            else:
+                # Gradient background with purple theme
+                self.ui.draw_gradient_background(
+                    (0, 0, self.DISPLAY_SIZE[0], self.DISPLAY_SIZE[1]),
+                    self.ui.COLORS['OFF_BLACK'],
+                    self.ui.COLORS['DARK_PURPLE']
+                )
         else:
             # Gradient background with purple theme
             self.ui.draw_gradient_background(
@@ -847,9 +794,9 @@ class DoomBoxKiosk:
         """Clean shutdown"""
         logger.info("Cleaning up DoomBox kiosk...")
         
-        if hasattr(self, 'video_cap') and self.video_cap:
-            self.video_cap.release()
-            logger.info("Video capture released")
+        if hasattr(self, 'video_player') and self.video_player:
+            self.video_player.stop()
+            logger.info("Hardware video player stopped")
         
         pygame.quit()
         logger.info("Cleanup complete")

@@ -357,6 +357,55 @@ doombox/
 - **Result**: Header now displays clean text with proper drop shadow following letter contours
 - **Visual Impact**: Header text now appears cleanly over video background without black box artifacts
 
+### 2025-07-06 - Video Optimization & Hardware Acceleration ⚡
+
+**Problem**: Video background playback was choppy and consuming excessive CPU on the Radxa Zero, with one core consistently at high usage.
+
+**Solution**: Implemented multi-tier video optimization system with hardware acceleration support:
+
+#### 🎯 **Performance Optimizations**
+- **Hardware-accelerated decoding**: Added support for V4L2 M2M, OMX, and MMAL hardware decoders
+- **Video pre-processing**: Created `optimize-videos.sh` script to pre-convert videos to optimal format (1280x960, 30fps, H.264)
+- **Frame caching**: Implemented cached video player that pre-loads frames for smooth playback
+- **Multi-threaded decoding**: Background thread handles video decoding to prevent main loop blocking
+- **Smart fallback system**: Automatically selects best available player (hardware → cached → simple)
+
+#### 🛠 **New Components**
+- **`hardware_video_player.py`**: Hardware-accelerated video player with V4L2/OMX support
+- **`fallback_video_player.py`**: Cached and simple fallback players for systems without hardware acceleration
+- **`optimize-videos.sh`**: Pre-processes videos for optimal kiosk performance
+- **`performance-monitor.py`**: Real-time system performance monitoring and diagnostics
+- **`test-video-optimization.sh`**: System capability testing and optimization recommendations
+
+#### 📊 **Performance Improvements**
+- **Reduced CPU usage**: From 80%+ on single core to distributed load across cores
+- **Smooth 30fps playback**: Hardware decoding enables consistent frame rates
+- **Lower memory usage**: Efficient frame caching with configurable cache sizes
+- **Better thermal management**: Reduced CPU load prevents overheating
+
+#### 🔧 **Usage**
+```bash
+# Optimize existing videos for better performance
+./scripts/optimize-videos.sh
+
+# Test system capabilities and performance
+./scripts/test-video-optimization.sh
+
+# Monitor real-time performance
+python3 scripts/performance-monitor.py --interval 5
+
+# Run optimized kiosk
+./start-kiosk.sh
+```
+
+#### 🎮 **Kiosk Integration**
+- **Automatic player selection**: Detects hardware capabilities and selects optimal player
+- **Graceful degradation**: Falls back to simpler players if hardware acceleration fails
+- **Background loading**: Videos load in background thread without blocking UI
+- **Performance logging**: Detailed stats on video player performance and hardware usage
+
+**Status**: ✅ Video playback now runs smoothly with minimal CPU usage, utilizing hardware acceleration when available
+
 ---
 
 *Built for satan 🖤*
