@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-shmegl's DoomBox Kiosk Application
-Displays QR code, manages game sessions, tracks scores
+shmegl's DoomBox Kiosk Application - Retro Edition
+Enhanced with authentic retro aesthetics and CRT-style visuals
 """
 
 import pygame
@@ -14,6 +14,7 @@ import threading
 import signal
 import sys
 import os
+import math
 from datetime import datetime
 try:
     import paho.mqtt.client as mqtt
@@ -22,34 +23,122 @@ except ImportError:
     MQTT_AVAILABLE = False
     print("Warning: MQTT not available")
 
+class RetroFont:
+    """Custom retro bitmap font renderer"""
+    def __init__(self):
+        # Simple 8x8 pixel font patterns for retro feel
+        self.char_width = 8
+        self.char_height = 8
+        
+    def render_text(self, surface, text, x, y, color, scale=1):
+        """Render text with pixelated font"""
+        for i, char in enumerate(text.upper()):
+            char_x = x + (i * self.char_width * scale)
+            if char == ' ':
+                continue
+            # For simplicity, use pygame's font but with crisp rendering
+            font = pygame.font.Font(None, int(self.char_height * scale * 2))
+            text_surface = font.render(char, False, color)
+            # Scale up for pixelated effect
+            if scale > 1:
+                w, h = text_surface.get_size()
+                text_surface = pygame.transform.scale(text_surface, (w * scale, h * scale))
+            surface.blit(text_surface, (char_x, y))
+
+class RetroEffects:
+    """Retro visual effects for CRT/arcade feel"""
+    
+    @staticmethod
+    def add_scanlines(surface, intensity=0.1):
+        """Add horizontal scanlines for CRT effect"""
+        overlay = pygame.Surface(surface.get_size())
+        overlay.set_alpha(int(255 * intensity))
+        
+        for y in range(0, surface.get_height(), 2):
+            pygame.draw.line(overlay, (0, 0, 0), (0, y), (surface.get_width(), y))
+        
+        surface.blit(overlay, (0, 0))
+    
+    @staticmethod
+    def add_glow(surface, color, radius=3):
+        """Add glow effect to surface"""
+        mask = pygame.mask.from_surface(surface)
+        glow_surface = mask.to_surface(setcolor=color, unsetcolor=(0, 0, 0, 0))
+        
+        # Create glow by blitting multiple slightly offset copies
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                if dx * dx + dy * dy <= radius * radius:
+                    surface.blit(glow_surface, (dx, dy), special_flags=pygame.BLEND_ADD)
+    
+    @staticmethod
+    def create_border_frame(surface, thickness=4, colors=None):
+        """Create retro-style border frame"""
+        if colors is None:
+            colors = [(255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255)]
+        
+        width, height = surface.get_size()
+        
+        # Outer frame
+        for i in range(thickness):
+            color = colors[i % len(colors)]
+            pygame.draw.rect(surface, color, 
+                           (i, i, width - 2*i, height - 2*i), 1)
+
 class DoomBoxKiosk:
     def __init__(self):
-        print("Initializing DoomBox Kiosk...")
+        print("Initializing Enhanced Retro DoomBox Kiosk...")
         
         # Initialize pygame
         pygame.init()
         pygame.joystick.init()
         
-        # Display settings - Radxa Zero at 1280x960
+        # Display settings - Enhanced for retro feel
         self.DISPLAY_SIZE = (1280, 960)
         try:
             self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
         except pygame.error as e:
             print(f"Failed to set fullscreen mode: {e}")
-            # Fallback to windowed mode
             self.screen = pygame.display.set_mode(self.DISPLAY_SIZE)
         
-        pygame.display.set_caption("shmegl's DoomBox")
+        pygame.display.set_caption("shmegl's DoomBox - Retro Edition")
         pygame.mouse.set_visible(False)
         
-        # Colors
-        self.BLACK = (0, 0, 0)
-        self.WHITE = (255, 255, 255)
-        self.RED = (255, 0, 0)
-        self.GREEN = (0, 255, 0)
-        self.YELLOW = (255, 255, 0)
-        self.GRAY = (128, 128, 128)
-        self.DARK_RED = (139, 0, 0)
+        # Retro color palette (inspired by classic arcade machines)
+        self.RETRO_COLORS = {
+            'BLACK': (0, 0, 0),
+            'DARK_GRAY': (32, 32, 32),
+            'GRAY': (64, 64, 64),
+            'LIGHT_GRAY': (128, 128, 128),
+            'WHITE': (255, 255, 255),
+            'BRIGHT_RED': (255, 0, 0),
+            'DARK_RED': (128, 0, 0),
+            'BRIGHT_GREEN': (0, 255, 0),
+            'DARK_GREEN': (0, 128, 0),
+            'BRIGHT_BLUE': (0, 0, 255),
+            'BRIGHT_YELLOW': (255, 255, 0),
+            'BRIGHT_CYAN': (0, 255, 255),
+            'BRIGHT_MAGENTA': (255, 0, 255),
+            'ORANGE': (255, 128, 0),
+            'PURPLE': (128, 0, 255),
+            'LIME': (128, 255, 0),
+            'PINK': (255, 128, 255),
+            'TEAL': (0, 128, 128),
+            'AMBER': (255, 191, 0),
+            'BLOOD_RED': (139, 0, 0)
+        }
+        
+        # Animation variables
+        self.frame_count = 0
+        self.text_pulse = 0
+        self.border_colors = [
+            self.RETRO_COLORS['BRIGHT_RED'],
+            self.RETRO_COLORS['BRIGHT_YELLOW'], 
+            self.RETRO_COLORS['BRIGHT_GREEN'],
+            self.RETRO_COLORS['BRIGHT_CYAN'],
+            self.RETRO_COLORS['BRIGHT_BLUE'],
+            self.RETRO_COLORS['BRIGHT_MAGENTA']
+        ]
         
         # Paths
         self.base_dir = "/opt/doombox"
@@ -81,14 +170,18 @@ class DoomBoxKiosk:
         self.konami_timeout = 5.0
         self.last_konami_input = time.time()
         
-        # Configuration
-        self.form_url = "https://shmeglsdoombox.spoon.rip/"
+        # Configuration - Updated URL
+        self.form_url = "http://shmeglsdoombox.spoon.rip"
         self.mqtt_enabled = MQTT_AVAILABLE
         
         # Initialize components
         self.init_database()
-        self.qr_image = self.generate_qr_code()
-        self.setup_fonts()
+        self.qr_image = self.generate_large_qr_code()
+        self.setup_retro_fonts()
+        
+        # Effects
+        self.retro_effects = RetroEffects()
+        self.retro_font = RetroFont()
         
         # Clock for FPS
         self.clock = pygame.time.Clock()
@@ -97,20 +190,40 @@ class DoomBoxKiosk:
         if self.mqtt_enabled:
             self.setup_mqtt()
         
-        print("DoomBox Kiosk initialized successfully!")
+        print("Enhanced Retro DoomBox Kiosk initialized successfully!")
 
-    def setup_fonts(self):
-        """Initialize pygame fonts"""
+    def setup_retro_fonts(self):
+        """Initialize retro-style fonts"""
         try:
-            self.font_large = pygame.font.Font(None, 72)
-            self.font_medium = pygame.font.Font(None, 48)
-            self.font_small = pygame.font.Font(None, 32)
-            self.font_tiny = pygame.font.Font(None, 24)
+            # Try to load a monospace font for better retro feel
+            self.font_huge = pygame.font.Font(None, 120)     # Title
+            self.font_large = pygame.font.Font(None, 72)     # Subtitle  
+            self.font_medium = pygame.font.Font(None, 48)    # Headers
+            self.font_small = pygame.font.Font(None, 32)     # Content
+            self.font_tiny = pygame.font.Font(None, 24)      # Footer
+            
+            # Make fonts look more pixelated by disabling antialiasing
+            self.pixel_fonts = True
         except:
-            self.font_large = pygame.font.SysFont('arial', 72, bold=True)
-            self.font_medium = pygame.font.SysFont('arial', 48, bold=True)
-            self.font_small = pygame.font.SysFont('arial', 32)
-            self.font_tiny = pygame.font.SysFont('arial', 24)
+            # Fallback fonts
+            self.font_huge = pygame.font.SysFont('courier', 120, bold=True)
+            self.font_large = pygame.font.SysFont('courier', 72, bold=True)
+            self.font_medium = pygame.font.SysFont('courier', 48, bold=True)
+            self.font_small = pygame.font.SysFont('courier', 32)
+            self.font_tiny = pygame.font.SysFont('courier', 24)
+            self.pixel_fonts = False
+
+    def render_pixel_text(self, text, font, color, glow=False):
+        """Render text with retro pixelated style"""
+        # Render without antialiasing for crisp pixels
+        surface = font.render(text, False, color)
+        
+        if glow:
+            # Add glow effect
+            glow_color = tuple(min(255, c + 50) for c in color[:3])
+            self.retro_effects.add_glow(surface, glow_color)
+        
+        return surface
 
     def init_database(self):
         """Initialize SQLite database for scores"""
@@ -133,37 +246,61 @@ class DoomBoxKiosk:
         except Exception as e:
             print(f"Database initialization error: {e}")
 
-    def generate_qr_code(self):
-        """Generate QR code for the registration form"""
+    def generate_large_qr_code(self):
+        """Generate large QR code for the registration form"""
         try:
             qr = qrcode.QRCode(
-                version=1,
+                version=3,  # Larger version for bigger QR code
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=8,
-                border=4,
+                box_size=12,  # Much larger boxes
+                border=8,     # Bigger border
             )
             qr.add_data(self.form_url)
             qr.make(fit=True)
             
-            qr_img = qr.make_image(fill_color="black", back_color="white")
-            qr_img = qr_img.resize((250, 250))
+            # Create QR image with retro colors
+            qr_img = qr.make_image(
+                fill_color=self.RETRO_COLORS['WHITE'], 
+                back_color=self.RETRO_COLORS['BLACK']
+            )
             
+            # Make it much larger - 400x400 pixels
+            qr_img = qr_img.resize((400, 400), resample=0)  # No interpolation for crisp pixels
+            
+            # Convert to pygame surface
             mode = qr_img.mode
             size = qr_img.size
             data = qr_img.tobytes()
             qr_surface = pygame.image.fromstring(data, size, mode)
             
-            print("QR code generated successfully")
-            return qr_surface
+            # Add retro border frame
+            bordered_surface = pygame.Surface((size[0] + 16, size[1] + 16))
+            bordered_surface.fill(self.RETRO_COLORS['DARK_GRAY'])
+            
+            # Add animated border
+            border_surface = pygame.Surface((size[0] + 16, size[1] + 16))
+            self.retro_effects.create_border_frame(border_surface, 4, self.border_colors)
+            
+            bordered_surface.blit(qr_surface, (8, 8))
+            bordered_surface.blit(border_surface, (0, 0))
+            
+            print("Large retro QR code generated successfully")
+            return bordered_surface
+            
         except Exception as e:
             print(f"QR code generation error: {e}")
-            surface = pygame.Surface((250, 250))
-            surface.fill(self.WHITE)
-            pygame.draw.rect(surface, self.BLACK, (10, 10, 230, 230), 5)
-            font = pygame.font.Font(None, 36)
-            text = font.render("QR ERROR", True, self.BLACK)
-            text_rect = text.get_rect(center=(125, 125))
-            surface.blit(text, text_rect)
+            # Create fallback QR placeholder
+            surface = pygame.Surface((400, 400))
+            surface.fill(self.RETRO_COLORS['DARK_GRAY'])
+            
+            # Draw retro-style "QR ERROR" text
+            error_text = self.render_pixel_text("QR ERROR", self.font_medium, self.RETRO_COLORS['BRIGHT_RED'])
+            text_rect = error_text.get_rect(center=(200, 200))
+            surface.blit(error_text, text_rect)
+            
+            # Add border
+            pygame.draw.rect(surface, self.RETRO_COLORS['BRIGHT_RED'], (0, 0, 400, 400), 4)
+            
             return surface
 
     def setup_mqtt(self):
@@ -250,270 +387,123 @@ class DoomBoxKiosk:
         except Exception as e:
             print(f"Error adding score: {e}")
 
+    def draw_animated_title(self):
+        """Draw animated title with retro effects"""
+        # Pulsing title
+        pulse = math.sin(self.frame_count * 0.1) * 0.3 + 1.0
+        title_color = tuple(int(c * pulse) for c in self.RETRO_COLORS['BLOOD_RED'])
+        title_color = tuple(min(255, max(0, c)) for c in title_color)
+        
+        title = self.render_pixel_text("shmegl's DoomBox", self.font_huge, title_color, glow=True)
+        title_rect = title.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=40)
+        self.screen.blit(title, title_rect)
+        
+        # Animated subtitle
+        subtitle_colors = [self.RETRO_COLORS['BRIGHT_YELLOW'], self.RETRO_COLORS['BRIGHT_CYAN']]
+        color_index = (self.frame_count // 30) % len(subtitle_colors)
+        subtitle_color = subtitle_colors[color_index]
+        
+        subtitle = self.render_pixel_text("Highest score gets a free tattoo!", self.font_large, subtitle_color)
+        subtitle_rect = subtitle.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=140)
+        self.screen.blit(subtitle, subtitle_rect)
+
+    def draw_retro_ui_frame(self, x, y, width, height, title=""):
+        """Draw retro-style UI frame"""
+        # Main frame
+        frame_surface = pygame.Surface((width, height))
+        frame_surface.fill(self.RETRO_COLORS['DARK_GRAY'])
+        
+        # Border with animated colors
+        border_color_index = (self.frame_count // 20) % len(self.border_colors)
+        border_color = self.border_colors[border_color_index]
+        
+        pygame.draw.rect(frame_surface, border_color, (0, 0, width, height), 3)
+        pygame.draw.rect(frame_surface, self.RETRO_COLORS['BLACK'], (3, 3, width-6, height-6), 1)
+        
+        # Title bar if provided
+        if title:
+            title_surface = self.render_pixel_text(title, self.font_medium, self.RETRO_COLORS['BRIGHT_WHITE'])
+            title_rect = title_surface.get_rect(centerx=width//2, y=10)
+            frame_surface.blit(title_surface, title_rect)
+        
+        self.screen.blit(frame_surface, (x, y))
+        return frame_surface
+
     def draw_screen(self):
-        """Draw the main kiosk screen"""
-        self.screen.fill(self.BLACK)
+        """Draw the enhanced retro kiosk screen"""
+        # Clear screen with dark background
+        self.screen.fill(self.RETRO_COLORS['BLACK'])
         
-        # Title
-        title = self.font_large.render("shmegl's DoomBox", True, self.DARK_RED)
-        subtitle = self.font_medium.render("Highest score gets a free tattoo!", True, self.WHITE)
-        instruction = self.font_small.render("Scan the QR code and fill out the form to play", True, self.GREEN)
+        # Draw animated grid background
+        grid_color = (*self.RETRO_COLORS['DARK_GRAY'][:3], 50)
+        for x in range(0, self.DISPLAY_SIZE[0], 40):
+            pygame.draw.line(self.screen, self.RETRO_COLORS['DARK_GRAY'], (x, 0), (x, self.DISPLAY_SIZE[1]))
+        for y in range(0, self.DISPLAY_SIZE[1], 40):
+            pygame.draw.line(self.screen, self.RETRO_COLORS['DARK_GRAY'], (0, y), (self.DISPLAY_SIZE[0], y))
         
-        # Center elements
-        title_x = self.DISPLAY_SIZE[0] // 2 - title.get_width() // 2
-        self.screen.blit(title, (title_x, 30))
+        # Animated title
+        self.draw_animated_title()
         
-        subtitle_x = self.DISPLAY_SIZE[0] // 2 - subtitle.get_width() // 2
-        self.screen.blit(subtitle, (subtitle_x, 100))
+        # Instruction text
+        instruction = self.render_pixel_text("SCAN THE QR CODE TO ENTER THE BATTLE", 
+                                           self.font_small, self.RETRO_COLORS['BRIGHT_GREEN'])
+        instruction_rect = instruction.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=220)
+        self.screen.blit(instruction, instruction_rect)
         
-        instruction_x = self.DISPLAY_SIZE[0] // 2 - instruction.get_width() // 2
-        self.screen.blit(instruction, (instruction_x, 150))
+        # Large QR Code in center-left
+        qr_x = 100
+        qr_y = 280
+        
+        # QR Frame
+        qr_frame = self.draw_retro_ui_frame(qr_x - 20, qr_y - 20, 440, 480, "SCAN TO PLAY")
         
         # QR Code
-        qr_x = 100
-        qr_y = 220
         self.screen.blit(self.qr_image, (qr_x, qr_y))
         
-        qr_label = self.font_small.render("Scan to Play", True, self.WHITE)
-        qr_label_x = qr_x + 125 - qr_label.get_width() // 2
-        self.screen.blit(qr_label, (qr_label_x, qr_y + 260))
+        # QR Label with pulsing effect
+        pulse = math.sin(self.frame_count * 0.2) * 0.5 + 1.0
+        label_color = tuple(int(c * pulse) for c in self.RETRO_COLORS['BRIGHT_CYAN'])
+        label_color = tuple(min(255, max(50, c)) for c in label_color)
         
-        # Top scores
-        scores_x = 450
-        scores_y = 220
+        qr_label = self.render_pixel_text(">> SCAN TO ENTER <<", self.font_medium, label_color)
+        qr_label_rect = qr_label.get_rect(centerx=qr_x + 200, y=qr_y + 420)
+        self.screen.blit(qr_label, qr_label_rect)
         
-        scores_title = self.font_medium.render("TOP SCORES", True, self.YELLOW)
-        self.screen.blit(scores_title, (scores_x, scores_y))
+        # High Scores section
+        scores_x = 600
+        scores_y = 280
+        scores_width = 600
+        scores_height = 480
+        
+        scores_frame = self.draw_retro_ui_frame(scores_x, scores_y, scores_width, scores_height, "TOP WARRIORS")
         
         scores = self.get_top_scores()
-        y_offset = scores_y + 50
+        y_offset = scores_y + 60
         
         if scores:
             for i, (name, score, timestamp, level) in enumerate(scores):
-                color = self.YELLOW if i == 0 else self.WHITE if i < 3 else self.GRAY
-                display_name = name[:15] + "..." if len(name) > 15 else name
-                score_text = self.font_small.render(f"{i+1:2d}. {display_name}: {score:,}", True, color)
-                self.screen.blit(score_text, (scores_x, y_offset + i * 35))
+                # Different colors for top 3
+                if i == 0:
+                    color = self.RETRO_COLORS['BRIGHT_YELLOW']  # Gold
+                    prefix = "👑"
+                elif i == 1:
+                    color = self.RETRO_COLORS['LIGHT_GRAY']     # Silver
+                    prefix = "🥈"
+                elif i == 2:
+                    color = self.RETRO_COLORS['ORANGE']         # Bronze
+                    prefix = "🥉"
+                else:
+                    color = self.RETRO_COLORS['WHITE']
+                    prefix = f"{i+1:2d}."
+                
+                # Format player name
+                display_name = name[:12] + "..." if len(name) > 12 else name
+                score_text = f"{prefix} {display_name}: {score:,}"
+                
+                score_surface = self.render_pixel_text(score_text, self.font_small, color)
+                self.screen.blit(score_surface, (scores_x + 20, y_offset + i * 35))
         else:
-            no_scores = self.font_small.render("No scores yet!", True, self.GRAY)
-            self.screen.blit(no_scores, (scores_x, y_offset))
-        
-        # Status
-        if self.game_running and self.current_player:
-            status_text = self.font_medium.render(f"NOW PLAYING: {self.current_player}", True, self.GREEN)
-            status_x = self.DISPLAY_SIZE[0] // 2 - status_text.get_width() // 2
-            self.screen.blit(status_text, (status_x, 750))
-        
-        # Footer info
-        controller_status = "Controller: Connected" if self.controller else "Controller: Not Found"
-        controller_color = self.GREEN if self.controller else self.RED
-        controller_text = self.font_tiny.render(controller_status, True, controller_color)
-        self.screen.blit(controller_text, (10, self.DISPLAY_SIZE[1] - 50))
-        
-        hint_text = self.font_tiny.render("Konami Code for Test Mode", True, self.GRAY)
-        hint_x = self.DISPLAY_SIZE[0] - hint_text.get_width() - 10
-        self.screen.blit(hint_text, (hint_x, self.DISPLAY_SIZE[1] - 50))
-        
-        version_text = self.font_tiny.render("DoomBox v1.0", True, self.GRAY)
-        self.screen.blit(version_text, (10, 10))
-        
-        pygame.display.flip()
-
-    def handle_controller_input(self):
-        """Handle input events"""
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return False
-                elif event.key == pygame.K_q and pygame.key.get_pressed()[pygame.K_LCTRL]:
-                    return False
-            elif event.type == pygame.JOYBUTTONDOWN and self.controller:
-                self.handle_joystick_button(event.button)
-            elif event.type == pygame.JOYHATMOTION and self.controller:
-                self.handle_joystick_hat(event.value)
-        return True
-
-    def handle_joystick_button(self, button):
-        """Handle joystick button presses"""
-        button_map = {0: 'button_0', 1: 'button_1', 2: 'button_2', 3: 'button_3'}
-        if button in button_map:
-            self.check_konami_input(button_map[button])
-
-    def handle_joystick_hat(self, hat_value):
-        """Handle D-pad input"""
-        hat_map = {(0, 1): 'dpad_up', (0, -1): 'dpad_down', (-1, 0): 'dpad_left', (1, 0): 'dpad_right'}
-        if hat_value in hat_map:
-            self.check_konami_input(hat_map[hat_value])
-
-    def check_konami_input(self, input_type):
-        """Check Konami code"""
-        current_time = time.time()
-        if current_time - self.last_konami_input > self.konami_timeout:
-            self.konami_input = []
-        
-        self.last_konami_input = current_time
-        self.konami_input.append(input_type)
-        
-        if len(self.konami_input) > len(self.konami_sequence):
-            self.konami_input.pop(0)
-        
-        if self.konami_input == self.konami_sequence:
-            print("Konami code activated!")
-            self.start_game("TEST_PLAYER")
-            self.konami_input = []
-
-    def start_game(self, player_name):
-        """Start DOOM game"""
-        if self.game_running:
-            print("Game already running!")
-            return
-        
-        self.current_player = player_name
-        self.game_running = True
-        print(f"Starting DOOM for player: {player_name}")
-        
-        game_thread = threading.Thread(target=self._run_doom, args=(player_name,))
-        game_thread.daemon = True
-        game_thread.start()
-
-    def _run_doom(self, player_name):
-        """Run DOOM in subprocess"""
-        start_time = time.time()
-        try:
-            doom_cmd = [
-                '/usr/local/bin/lzdoom',
-                '-iwad', f'{self.doom_dir}/DOOM.WAD',
-                '-width', '640',
-                '-height', '480',
-                '-fullscreen',
-                '+name', player_name
-            ]
-            
-            print(f"Launching DOOM: {' '.join(doom_cmd)}")
-            
-            self.game_process = subprocess.Popen(
-                doom_cmd, 
-                cwd=self.doom_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            
-            stdout, stderr = self.game_process.communicate()
-            play_time = int(time.time() - start_time)
-            score = self._extract_score(stdout, stderr)
-            
-            if not player_name.startswith("TEST_"):
-                self.add_score(player_name, score, time_played=play_time)
-            
-            print(f"Game ended. Score: {score}, Play time: {play_time}s")
-            
-        except Exception as e:
-            print(f"Error running DOOM: {e}")
-        finally:
-            self.game_running = False
-            self.current_player = None
-            self.game_process = None
-
-    def _extract_score(self, stdout, stderr):
-        """Extract score from DOOM output"""
-        import random
-        return random.randint(1000, 50000)
-
-    def check_for_new_players(self):
-        """Check for new players via file trigger"""
-        current_time = time.time()
-        if current_time - self.last_check_time < 2.0:
-            return
-        
-        self.last_check_time = current_time
-        
-        try:
-            trigger_file = f"{self.base_dir}/new_player.json"
-            if os.path.exists(trigger_file):
-                with open(trigger_file, 'r') as f:
-                    data = json.load(f)
-                
-                player_name = data.get('player_name', 'Unknown')
-                print(f"New player from file: {player_name}")
-                self.start_game(player_name)
-                os.remove(trigger_file)
-        except:
-            pass
-
-    def cleanup(self):
-        """Clean up resources"""
-        print("Cleaning up DoomBox resources...")
-        
-        if hasattr(self, 'mqtt_client') and self.mqtt_enabled:
-            try:
-                self.mqtt_client.loop_stop()
-                self.mqtt_client.disconnect()
-            except:
-                pass
-        
-        if self.game_process:
-            try:
-                self.game_process.terminate()
-                self.game_process.wait(timeout=5)
-            except:
-                try:
-                    self.game_process.kill()
-                except:
-                    pass
-        
-        pygame.quit()
-
-    def run(self):
-        """Main kiosk loop"""
-        print("Starting DoomBox main loop...")
-        
-        try:
-            while self.running:
-                if not self.handle_controller_input():
-                    break
-                
-                self.check_for_new_players()
-                
-                if not self.controller and time.time() % 10 < 0.1:
-                    self.setup_controller()
-                
-                self.draw_screen()
-                self.clock.tick(30)
-                
-        except KeyboardInterrupt:
-            print("Keyboard interrupt received, shutting down...")
-        except Exception as e:
-            print(f"Unexpected error in main loop: {e}")
-        finally:
-            self.cleanup()
-
-def signal_handler(signum, frame):
-    """Handle system signals"""
-    print(f"\nReceived signal {signum}, shutting down gracefully...")
-    global kiosk
-    if 'kiosk' in globals():
-        kiosk.running = False
-
-def main():
-    """Main entry point"""
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    if not os.environ.get('DISPLAY'):
-        print("Warning: DISPLAY environment variable not set")
-        print("Try: export DISPLAY=:0")
-    
-    try:
-        global kiosk
-        kiosk = DoomBoxKiosk()
-        kiosk.run()
-    except Exception as e:
-        print(f"Failed to start DoomBox: {e}")
-        return 1
-    
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())
+            no_scores = self.render_pixel_text("NO SCORES YET - BE THE FIRST!", 
+                                             self.font_small, self.RETRO_COLORS['GRAY'])
+            no_scores_rect = no_scores.get_rect(centerx=scores_x + scores_width//2, y=y_offset + 100)
+            se
