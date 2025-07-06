@@ -29,6 +29,9 @@ export DISPLAY=:0
 export SDL_VIDEODRIVER=fbcon
 export SDL_FBDEV=/dev/fb0
 
+# Add /usr/games to PATH for doom executables
+export PATH="/usr/games:$PATH"
+
 # Function to check if process is running
 check_process() {
     pgrep -f "$1" > /dev/null 2>&1
@@ -86,11 +89,16 @@ check_dependencies() {
     fi
     
     # Check system dependencies
-    for cmd in "dsda-doom" "bluetoothctl" "xset" "unclutter"; do
+    for cmd in "dsda-doom" "bluetoothctl" "unclutter"; do
         if ! command -v "$cmd" &> /dev/null; then
             MISSING_DEPS="$MISSING_DEPS $cmd"
         fi
     done
+    
+    # Check xset only if we have DISPLAY set
+    if [ -n "$DISPLAY" ] && ! command -v "xset" &> /dev/null; then
+        MISSING_DEPS="$MISSING_DEPS xset"
+    fi
     
     if [ -n "$MISSING_DEPS" ]; then
         echo -e "${RED}Missing system dependencies:$MISSING_DEPS${NC}"
