@@ -343,6 +343,13 @@ doombox/
 - **Resolved X server startup issues** caused by method accessibility problems
 - **Service now runs stable** with all visual enhancements properly applied
 
+### 2025-07-06 - Header Styling & Layout Improvements
+- **Removed header background div** - header text now appears directly on video background for cleaner look
+- **Changed header text color to Doom red** (220, 50, 50) to match authentic Doom logo styling
+- **Centered TOP SCORES text** with trophy icons repositioned to the right side for better balance
+- **Improved visual hierarchy** with header text standing out against video background
+- **Enhanced authenticity** with classic Doom red color scheme for main title
+
 ---
 
 *Built for satan 🖤*
