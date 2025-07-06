@@ -274,6 +274,20 @@ doombox/
   - Added missing `setup_database()` method for score tracking
   - Simplified DietPi custom script to just call `start-kiosk.sh`
 
+### 2025-07-06 - Kiosk Manager Restoration
+- **Restored video background playback** functionality in kiosk-manager.py
+- **Fixed Puffin Arcade Liquid font** usage for headlines and titles
+- **Implemented transparent QR code & top score containers** with 50% opacity overlays
+- **Added icons/characters next to TOP SCORES** text (🏆, 👑, 🥈, 🥉, 💀)
+- **Fixed directory paths** to correctly reference fonts/ and vid/ directories from src/
+- **Added proper imports** for numpy, cv2, and other required modules
+- **Enhanced score display** with themed icons for different rankings
+- **Video cycling system** now properly shuffles through all .mp4 files in vid/
+- **Improved visual contrast** while maintaining video background visibility
+- **Error handling** for missing fonts/videos with graceful fallbacks
+
+**Status**: ✅ Kiosk display now fully functional with video backgrounds and premium fonts
+
 ## 🚀 Deployment Log
 
 ### 2025-07-06 - Initial Kiosk Deployment SUCCESS ✅

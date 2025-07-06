@@ -2,14 +2,7 @@
 """
 shmegl's DoomBox Kiosk Application - Improved Layout
 Optimized for 4:3 displays (1280x960) with clean, appealing design
-Uses only Puffin fonts for co        # Setup directories
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.fonts_dir = os.path.join(self.base_dir, 'fonts')
-        self.assets_dir = os.path.join(self.base_dir, 'assets')
-        self.videos_dir = os.path.join(self.base_dir, 'vid')  # Fixed video directory path
-        
-        for directory in [self.fonts_dir, self.assets_dir, self.videos_dir]:
-            os.makedirs(directory, exist_ok=True) visual style
+Uses only Puffin fonts for consistent visual style
 """
 
 import pygame
@@ -29,6 +22,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 import cv2
+import numpy as np
 
 # Set up logging
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -182,10 +176,10 @@ class DoomBoxKiosk:
 
     def setup_directories(self):
         """Setup required directories"""
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up one level from src/
         self.fonts_dir = os.path.join(self.base_dir, 'fonts')
         self.assets_dir = os.path.join(self.base_dir, 'assets')
-        self.videos_dir = os.path.join(self.base_dir, 'vid')  # Fixed video directory path
+        self.videos_dir = os.path.join(self.base_dir, 'vid')
         
         for directory in [self.fonts_dir, self.assets_dir, self.videos_dir]:
             os.makedirs(directory, exist_ok=True)
@@ -250,7 +244,6 @@ class DoomBoxKiosk:
             qr_img = qr_img.resize((self.ui.LAYOUT['QR_SIZE'], self.ui.LAYOUT['QR_SIZE']))
             
             # Convert PIL image to pygame surface using numpy
-            import numpy as np
             qr_array = np.array(qr_img)
             
             # Handle different image modes
@@ -576,7 +569,7 @@ class DoomBoxKiosk:
             2
         )
 
-        # Leaderboard title
+        # Leaderboard title with icons
         scores_title_y = content_y + self.ui.LAYOUT['PADDING']
         self.ui.draw_text_with_shadow(
             "🏆 TOP SCORES 🏆",
@@ -594,19 +587,32 @@ class DoomBoxKiosk:
         for i, (player_name, score) in enumerate(scores):
             entry_y = scores_start_y + i * line_height
             
-            # Rank colors with purple theme
+            # Rank colors with purple theme and icons
             if i == 0:
                 rank_color = self.ui.COLORS['GOLD_PURPLE']
                 name_color = self.ui.COLORS['GOLD_PURPLE']
+                icon = "👑"
             elif i == 1:
                 rank_color = self.ui.COLORS['LIGHT_PURPLE']
                 name_color = self.ui.COLORS['LIGHT_PURPLE']
+                icon = "🥈"
             elif i == 2:
                 rank_color = self.ui.COLORS['WARNING_PURPLE']
                 name_color = self.ui.COLORS['WARNING_PURPLE']
+                icon = "🥉"
             else:
                 rank_color = self.ui.COLORS['MEDIUM_GRAY']
                 name_color = self.ui.COLORS['OFF_WHITE']
+                icon = "💀"  # Doom-themed icon for other entries
+
+            # Icon
+            self.ui.draw_text_with_shadow(
+                icon,
+                self.font_medium,
+                rank_color,
+                (scores_section_x + 15, entry_y),
+                self.ui.COLORS['OFF_BLACK']
+            )
 
             # Rank number
             rank_text = f"{i+1}."
@@ -614,7 +620,7 @@ class DoomBoxKiosk:
                 rank_text,
                 self.font_medium,
                 rank_color,
-                (scores_section_x + 30, entry_y),
+                (scores_section_x + 55, entry_y),
                 self.ui.COLORS['OFF_BLACK']
             )
 
@@ -624,7 +630,7 @@ class DoomBoxKiosk:
                 display_name,
                 self.font_medium,
                 name_color,
-                (scores_section_x + 80, entry_y),
+                (scores_section_x + 105, entry_y),
                 self.ui.COLORS['OFF_BLACK']
             )
 
