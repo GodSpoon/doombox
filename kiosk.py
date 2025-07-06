@@ -210,10 +210,18 @@ class DoomBoxKiosk:
         self.db_path = os.path.join(self.base_dir, "scores.db")
         self.logs_dir = os.path.join(self.base_dir, "logs")
         self.trigger_file = os.path.join(self.base_dir, "new_player.json")
-        self.fonts_dir = os.path.join(self.repo_dir, "fonts")  # Use git repo fonts
+        self.fonts_dir = os.path.join(self.base_dir, "fonts")  # Use local fonts first, then fall back to git repo
         self.icons_dir = os.path.join(self.base_dir, "icons")
-        self.vid_dir = os.path.join(self.repo_dir, "vid")  # Use git repo videos
-        self.img_dir = os.path.join(self.repo_dir, "img")  # Use git repo images
+        self.vid_dir = os.path.join(self.base_dir, "vid")  # Use local vid first, then fall back to git repo
+        self.img_dir = os.path.join(self.base_dir, "img")  # Use local img first, then fall back to git repo
+
+        # Fallback to git repo directories if local ones don't exist
+        if not os.path.exists(self.fonts_dir):
+            self.fonts_dir = os.path.join(self.repo_dir, "fonts")
+        if not os.path.exists(self.vid_dir):
+            self.vid_dir = os.path.join(self.repo_dir, "vid")
+        if not os.path.exists(self.img_dir):
+            self.img_dir = os.path.join(self.repo_dir, "img")
 
         # Ensure directories exist (only create local app directories)
         for dir_path in [self.logs_dir, self.icons_dir]:
@@ -224,6 +232,9 @@ class DoomBoxKiosk:
 
         # Initialize fonts
         self.setup_retro_fonts()
+
+        # Initialize retro renderer
+        self.retro = RetroKioskRenderer(self.screen, self.DISPLAY_SIZE)
 
         # Load pixel icons
         self.load_pixel_icons()
@@ -314,19 +325,27 @@ class DoomBoxKiosk:
         try:
             # Try to load custom fonts, fallback to system fonts with retro styling
             try:
-                # Attempt to load Puffin Liquid for large text
-                self.font_huge = pygame.font.Font(f"{self.fonts_dir}/puffin.ttf", 72)
-                self.font_large = pygame.font.Font(f"{self.fonts_dir}/puffin.ttf", 48)
+                # First check if we have actual font files (not placeholders)
+                puffin_path = f"{self.fonts_dir}/puffin.ttf"
+                if os.path.exists(puffin_path) and os.path.getsize(puffin_path) > 100:
+                    self.font_huge = pygame.font.Font(puffin_path, 72)
+                    self.font_large = pygame.font.Font(puffin_path, 48)
+                else:
+                    raise FileNotFoundError("No valid Puffin font found")
             except:
                 # Fallback to bold system font for retro feel
                 self.font_huge = pygame.font.SysFont('courier', 72, bold=True)
                 self.font_large = pygame.font.SysFont('courier', 48, bold=True)
 
             try:
-                # Attempt to load Minecraft font for smaller text
-                self.font_medium = pygame.font.Font(f"{self.fonts_dir}/minecraft.ttf", 32)
-                self.font_small = pygame.font.Font(f"{self.fonts_dir}/minecraft.ttf", 24)
-                self.font_tiny = pygame.font.Font(f"{self.fonts_dir}/minecraft.ttf", 18)
+                # Check if we have actual font files (not placeholders)
+                minecraft_path = f"{self.fonts_dir}/minecraft.ttf"
+                if os.path.exists(minecraft_path) and os.path.getsize(minecraft_path) > 100:
+                    self.font_medium = pygame.font.Font(minecraft_path, 32)
+                    self.font_small = pygame.font.Font(minecraft_path, 24)
+                    self.font_tiny = pygame.font.Font(minecraft_path, 18)
+                else:
+                    raise FileNotFoundError("No valid Minecraft font found")
             except:
                 # Fallback to monospace for pixelated feel
                 self.font_medium = pygame.font.SysFont('monospace', 32, bold=True)
@@ -347,40 +366,57 @@ class DoomBoxKiosk:
         """Load pixel icons for UI elements"""
         self.icons = {}
 
+        # Updated icon mappings to use actual icons from img/icons directory
         icon_mappings = {
-            'skull': 'skull.png',
+            'skull': 'hockey-mask.png',     # closest to skull
             'fire': 'fire.png',
             'star': 'star.png',
             'trophy': 'trophy.png',
-            'controller': 'gamepad.png',
-            'qr': 'qr.png',
-            'wifi': 'wifi.png',
+            'controller': 'robot.png',      # closest to gamepad
+            'qr': 'code.png',              # closest to QR code
+            'wifi': 'globe.png',           # closest to wifi
             'heart': 'heart.png',
-            'lightning': 'lightning.png',
-            'gem': 'gem.png'
+            'lightning': 'bolt.png',        # closest to lightning
+            'gem': 'sparkles.png'          # closest to gem
         }
 
+        # Check both the icons directory and the img/icons directory
+        icon_search_paths = [
+            f"{self.icons_dir}/32",
+            f"{self.img_dir}/icons"
+        ]
+
         for icon_name, filename in icon_mappings.items():
-            icon_path = f"{self.icons_dir}/32/{filename}"
-            if os.path.exists(icon_path):
-                try:
-                    self.icons[icon_name] = pygame.image.load(icon_path)
-                    logger.debug(f"Loaded icon: {icon_name}")
-                except Exception as e:
-                    logger.warning(f"Could not load icon {icon_name}: {e}")
-                    # Create placeholder colored rectangle
-                    self.icons[icon_name] = self.create_placeholder_icon(32, 32)
-            else:
-                # Create placeholder icon
+            icon_loaded = False
+            
+            # Try to load from available paths
+            for search_path in icon_search_paths:
+                icon_path = f"{search_path}/{filename}"
+                if os.path.exists(icon_path):
+                    try:
+                        self.icons[icon_name] = pygame.image.load(icon_path)
+                        # Scale to 32x32 if needed
+                        if self.icons[icon_name].get_size() != (32, 32):
+                            self.icons[icon_name] = pygame.transform.scale(self.icons[icon_name], (32, 32))
+                        logger.debug(f"Loaded icon: {icon_name} from {icon_path}")
+                        icon_loaded = True
+                        break
+                    except Exception as e:
+                        logger.warning(f"Could not load icon {icon_name} from {icon_path}: {e}")
+                        continue
+            
+            # If no icon found, create placeholder
+            if not icon_loaded:
                 self.icons[icon_name] = self.create_placeholder_icon(32, 32)
+                logger.debug(f"Created placeholder for icon: {icon_name}")
 
         logger.info(f"Loaded {len(self.icons)} pixel icons")
 
     def create_placeholder_icon(self, width, height):
         """Create a placeholder pixel icon"""
         surface = pygame.Surface((width, height))
-        surface.fill(self.retro.RETRO_COLORS['TERMINAL_AMBER'])
-        pygame.draw.rect(surface, self.retro.RETRO_COLORS['BLACK'], (2, 2, width-4, height-4), 2)
+        surface.fill((255, 191, 0))  # TERMINAL_AMBER color
+        pygame.draw.rect(surface, (0, 0, 0), (2, 2, width-4, height-4), 2)  # BLACK border
         return surface
 
     def setup_video_background(self):
@@ -446,8 +482,9 @@ class DoomBoxKiosk:
             qr.make(fit=True)
 
             # Create QR image with retro colors
-            qr_img = qr.make_image(fill_color=self.retro.RETRO_COLORS['MATRIX_GREEN'],
-                                 back_color=self.retro.RETRO_COLORS['BLACK'])
+            # Use direct colors since retro renderer might not be ready yet
+            qr_img = qr.make_image(fill_color=(57, 255, 20),  # MATRIX_GREEN
+                                 back_color=(0, 0, 0))      # BLACK
 
             # Convert to pygame surface
             qr_string = qr_img.tobytes()
@@ -459,7 +496,7 @@ class DoomBoxKiosk:
             logger.error(f"QR code generation error: {e}")
             # Create placeholder QR
             self.qr_image = pygame.Surface((200, 200))
-            self.qr_image.fill(self.retro.RETRO_COLORS['MATRIX_GREEN'])
+            self.qr_image.fill((57, 255, 20))  # MATRIX_GREEN
 
     def init_database(self):
         """Initialize SQLite database for scores"""
@@ -503,7 +540,13 @@ class DoomBoxKiosk:
     def setup_mqtt(self):
         """Setup MQTT client for form integration"""
         try:
-            self.mqtt_client = mqtt.Client()
+            # Try new callback API first, fallback to old version
+            try:
+                self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+            except:
+                # Fallback for older paho-mqtt versions
+                self.mqtt_client = mqtt.Client()
+            
             self.mqtt_client.on_connect = self.on_mqtt_connect
             self.mqtt_client.on_message = self.on_mqtt_message
             self.mqtt_client.connect("localhost", 1883, 60)
