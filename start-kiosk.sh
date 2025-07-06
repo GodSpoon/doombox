@@ -25,9 +25,8 @@ mkdir -p "$SCRIPT_DIR/config"
 mkdir -p "$SCRIPT_DIR/assets"
 
 # Set up environment variables
-export DISPLAY=:0
-export SDL_VIDEODRIVER=fbcon
-export SDL_FBDEV=/dev/fb0
+export DISPLAY=${DISPLAY:-:0}
+export SDL_VIDEODRIVER=x11
 
 # Add /usr/games to PATH for doom executables
 export PATH="/usr/games:$PATH"

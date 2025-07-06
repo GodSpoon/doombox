@@ -126,26 +126,25 @@ configure_systemd_service() {
     cat << EOF | sudo tee /etc/systemd/system/doombox-kiosk.service
 [Unit]
 Description=DoomBox Kiosk Application
-After=graphical-session.target
-Wants=graphical-session.target
+After=graphical.target network.target
+Wants=graphical.target
 
 [Service]
 Type=simple
-User=dietpi
-Group=dietpi
+User=root
+Group=root
 WorkingDirectory=$DOOMBOX_DIR
-Environment=DISPLAY=:0
-Environment=SDL_VIDEODRIVER=fbcon
-Environment=SDL_FBDEV=/dev/fb0
-ExecStartPre=/bin/sleep 10
-ExecStart=$DOOMBOX_DIR/start-kiosk.sh
+ExecStartPre=/bin/sleep 5
+ExecStart=$DOOMBOX_DIR/start-x-kiosk.sh
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
+KillMode=mixed
+TimeoutStopSec=10
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=graphical.target
 EOF
     
     # Reload systemd and enable service
