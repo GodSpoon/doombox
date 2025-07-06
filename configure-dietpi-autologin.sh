@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 DOOMBOX_DIR="$SCRIPT_DIR"
 
 # Check if running on DietPi
-if [ ! -f "/boot/dietpi/.dietpi_hw_model" ]; then
+if [ ! -f "/boot/dietpi/.hw_model" ]; then
     echo -e "${RED}This script is designed for DietPi systems only.${NC}"
     echo -e "${YELLOW}Please run this on a DietPi system.${NC}"
     exit 1
