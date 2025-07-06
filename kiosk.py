@@ -11,30 +11,20 @@ import sqlite3
 import subprocess
 import time
 import threading
-import requests
 import signal
 import sys
 import os
-import psutil
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont
-import paho.mqtt.client as mqtt
-import logging
+try:
+    import paho.mqtt.client as mqtt
+    MQTT_AVAILABLE = True
+except ImportError:
+    MQTT_AVAILABLE = False
+    print("Warning: MQTT not available")
 
 class DoomBoxKiosk:
     def __init__(self):
         print("Initializing DoomBox Kiosk...")
-        
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('/opt/doombox/logs/kiosk.log'),
-                logging.StreamHandler()
-            ]
-        )
-        self.logger = logging.getLogger(__name__)
         
         # Initialize pygame
         pygame.init()
@@ -45,23 +35,21 @@ class DoomBoxKiosk:
         try:
             self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
         except pygame.error as e:
-            self.logger.error(f"Failed to set fullscreen mode: {e}")
+            print(f"Failed to set fullscreen mode: {e}")
             # Fallback to windowed mode
             self.screen = pygame.display.set_mode(self.DISPLAY_SIZE)
         
         pygame.display.set_caption("shmegl's DoomBox")
-        pygame.mouse.set_visible(False)  # Hide mouse cursor
+        pygame.mouse.set_visible(False)
         
         # Colors
         self.BLACK = (0, 0, 0)
         self.WHITE = (255, 255, 255)
         self.RED = (255, 0, 0)
         self.GREEN = (0, 255, 0)
-        self.BLUE = (0, 0, 255)
         self.YELLOW = (255, 255, 0)
         self.GRAY = (128, 128, 128)
         self.DARK_RED = (139, 0, 0)
-        self.PURPLE = (138, 43, 226)
         
         # Paths
         self.base_dir = "/opt/doombox"
@@ -83,38 +71,33 @@ class DoomBoxKiosk:
         self.controller = None
         self.setup_controller()
         
-        # Konami code for DualShock 4 (using button indices)
-        # UP, UP, DOWN, DOWN, LEFT, RIGHT, LEFT, RIGHT, X, O
+        # Konami sequence
         self.konami_sequence = [
             'dpad_up', 'dpad_up', 'dpad_down', 'dpad_down',
             'dpad_left', 'dpad_right', 'dpad_left', 'dpad_right',
-            'button_0', 'button_1'  # X, Circle on DS4
+            'button_0', 'button_1'
         ]
         self.konami_input = []
-        self.konami_timeout = 5.0  # Reset sequence after 5 seconds
+        self.konami_timeout = 5.0
         self.last_konami_input = time.time()
         
         # Configuration
         self.form_url = "https://shmeglsdoombox.spoon.rip/"
-        self.mqtt_enabled = True
+        self.mqtt_enabled = MQTT_AVAILABLE
         
-        # Initialize database
+        # Initialize components
         self.init_database()
-        
-        # Generate QR code
         self.qr_image = self.generate_qr_code()
+        self.setup_fonts()
         
-        # Start MQTT listener
+        # Clock for FPS
+        self.clock = pygame.time.Clock()
+        
+        # Setup MQTT if available
         if self.mqtt_enabled:
             self.setup_mqtt()
         
-        # Fonts
-        self.setup_fonts()
-        
-        # Clock for FPS limiting
-        self.clock = pygame.time.Clock()
-        
-        self.logger.info("DoomBox Kiosk initialized successfully!")
+        print("DoomBox Kiosk initialized successfully!")
 
     def setup_fonts(self):
         """Initialize pygame fonts"""
@@ -124,7 +107,6 @@ class DoomBoxKiosk:
             self.font_small = pygame.font.Font(None, 32)
             self.font_tiny = pygame.font.Font(None, 24)
         except:
-            # Fallback to default font
             self.font_large = pygame.font.SysFont('arial', 72, bold=True)
             self.font_medium = pygame.font.SysFont('arial', 48, bold=True)
             self.font_small = pygame.font.SysFont('arial', 32)
@@ -147,9 +129,9 @@ class DoomBoxKiosk:
             ''')
             conn.commit()
             conn.close()
-            self.logger.info("Database initialized successfully")
+            print("Database initialized successfully")
         except Exception as e:
-            self.logger.error(f"Database initialization error: {e}")
+            print(f"Database initialization error: {e}")
 
     def generate_qr_code(self):
         """Generate QR code for the registration form"""
@@ -163,21 +145,18 @@ class DoomBoxKiosk:
             qr.add_data(self.form_url)
             qr.make(fit=True)
             
-            # Create QR code image
             qr_img = qr.make_image(fill_color="black", back_color="white")
             qr_img = qr_img.resize((250, 250))
             
-            # Convert PIL image to pygame surface
             mode = qr_img.mode
             size = qr_img.size
             data = qr_img.tobytes()
             qr_surface = pygame.image.fromstring(data, size, mode)
             
-            self.logger.info("QR code generated successfully")
+            print("QR code generated successfully")
             return qr_surface
         except Exception as e:
-            self.logger.error(f"QR code generation error: {e}")
-            # Create placeholder surface
+            print(f"QR code generation error: {e}")
             surface = pygame.Surface((250, 250))
             surface.fill(self.WHITE)
             pygame.draw.rect(surface, self.BLACK, (10, 10, 230, 230), 5)
@@ -188,57 +167,54 @@ class DoomBoxKiosk:
             return surface
 
     def setup_mqtt(self):
-        """Setup MQTT client for remote game triggers"""
+        """Setup MQTT client"""
+        if not MQTT_AVAILABLE:
+            return
         try:
             self.mqtt_client = mqtt.Client()
             self.mqtt_client.on_connect = self.on_mqtt_connect
             self.mqtt_client.on_message = self.on_mqtt_message
-            # Connect to local mosquitto broker
             self.mqtt_client.connect("localhost", 1883, 60)
             self.mqtt_client.loop_start()
-            self.logger.info("MQTT client setup successful")
+            print("MQTT client setup successful")
         except Exception as e:
-            self.logger.error(f"MQTT setup failed: {e}")
+            print(f"MQTT setup failed: {e}")
             self.mqtt_enabled = False
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
-        """MQTT connection callback"""
         if rc == 0:
-            self.logger.info("MQTT connected successfully")
+            print("MQTT connected successfully")
             client.subscribe("doombox/start_game")
-        else:
-            self.logger.error(f"MQTT connection failed with code {rc}")
 
     def on_mqtt_message(self, client, userdata, msg):
-        """MQTT message callback"""
         try:
             data = json.loads(msg.payload.decode())
             player_name = data.get('player_name', 'Unknown')
-            self.logger.info(f"MQTT: Starting game for {player_name}")
+            print(f"MQTT: Starting game for {player_name}")
             self.start_game(player_name)
         except Exception as e:
-            self.logger.error(f"MQTT message error: {e}")
+            print(f"MQTT message error: {e}")
 
     def setup_controller(self):
-        """Setup DualShock 4 controller"""
+        """Setup controller"""
         try:
             pygame.joystick.quit()
             pygame.joystick.init()
             
             joystick_count = pygame.joystick.get_count()
-            self.logger.info(f"Found {joystick_count} joystick(s)")
+            print(f"Found {joystick_count} joystick(s)")
             
             if joystick_count > 0:
                 self.controller = pygame.joystick.Joystick(0)
                 self.controller.init()
                 controller_name = self.controller.get_name()
-                self.logger.info(f"Controller connected: {controller_name}")
+                print(f"Controller connected: {controller_name}")
                 return True
             else:
-                self.logger.info("No controller found")
+                print("No controller found")
                 return False
         except Exception as e:
-            self.logger.error(f"Controller setup error: {e}")
+            print(f"Controller setup error: {e}")
             return False
 
     def get_top_scores(self, limit=10):
@@ -256,7 +232,7 @@ class DoomBoxKiosk:
             conn.close()
             return scores
         except Exception as e:
-            self.logger.error(f"Error getting scores: {e}")
+            print(f"Error getting scores: {e}")
             return []
 
     def add_score(self, player_name, score, level=1, time_played=0):
@@ -270,9 +246,9 @@ class DoomBoxKiosk:
             ''', (player_name, score, datetime.now(), level, time_played))
             conn.commit()
             conn.close()
-            self.logger.info(f"Score added: {player_name} - {score} points")
+            print(f"Score added: {player_name} - {score} points")
         except Exception as e:
-            self.logger.error(f"Error adding score: {e}")
+            print(f"Error adding score: {e}")
 
     def draw_screen(self):
         """Draw the main kiosk screen"""
@@ -283,7 +259,7 @@ class DoomBoxKiosk:
         subtitle = self.font_medium.render("Highest score gets a free tattoo!", True, self.WHITE)
         instruction = self.font_small.render("Scan the QR code and fill out the form to play", True, self.GREEN)
         
-        # Center title elements
+        # Center elements
         title_x = self.DISPLAY_SIZE[0] // 2 - title.get_width() // 2
         self.screen.blit(title, (title_x, 30))
         
@@ -293,22 +269,16 @@ class DoomBoxKiosk:
         instruction_x = self.DISPLAY_SIZE[0] // 2 - instruction.get_width() // 2
         self.screen.blit(instruction, (instruction_x, 150))
         
-        # QR Code (left side)
+        # QR Code
         qr_x = 100
         qr_y = 220
         self.screen.blit(self.qr_image, (qr_x, qr_y))
         
-        # QR Code label
         qr_label = self.font_small.render("Scan to Play", True, self.WHITE)
         qr_label_x = qr_x + 125 - qr_label.get_width() // 2
         self.screen.blit(qr_label, (qr_label_x, qr_y + 260))
         
-        # URL text below QR code
-        url_text = self.font_tiny.render(self.form_url, True, self.GRAY)
-        url_x = qr_x + 125 - url_text.get_width() // 2
-        self.screen.blit(url_text, (url_x, qr_y + 290))
-        
-        # Top scores (right side)
+        # Top scores
         scores_x = 450
         scores_y = 220
         
@@ -320,16 +290,7 @@ class DoomBoxKiosk:
         
         if scores:
             for i, (name, score, timestamp, level) in enumerate(scores):
-                if i == 0:
-                    color = self.YELLOW  # Gold for first place
-                elif i == 1:
-                    color = self.WHITE   # Silver for second
-                elif i == 2:
-                    color = self.GRAY    # Bronze for third
-                else:
-                    color = self.WHITE
-                
-                # Truncate long names
+                color = self.YELLOW if i == 0 else self.WHITE if i < 3 else self.GRAY
                 display_name = name[:15] + "..." if len(name) > 15 else name
                 score_text = self.font_small.render(f"{i+1:2d}. {display_name}: {score:,}", True, color)
                 self.screen.blit(score_text, (scores_x, y_offset + i * 35))
@@ -337,39 +298,29 @@ class DoomBoxKiosk:
             no_scores = self.font_small.render("No scores yet!", True, self.GRAY)
             self.screen.blit(no_scores, (scores_x, y_offset))
         
-        # Game status
-        status_y = 750
+        # Status
         if self.game_running and self.current_player:
             status_text = self.font_medium.render(f"NOW PLAYING: {self.current_player}", True, self.GREEN)
             status_x = self.DISPLAY_SIZE[0] // 2 - status_text.get_width() // 2
-            self.screen.blit(status_text, (status_x, status_y))
+            self.screen.blit(status_text, (status_x, 750))
         
-        # Controller status
+        # Footer info
         controller_status = "Controller: Connected" if self.controller else "Controller: Not Found"
         controller_color = self.GREEN if self.controller else self.RED
         controller_text = self.font_tiny.render(controller_status, True, controller_color)
         self.screen.blit(controller_text, (10, self.DISPLAY_SIZE[1] - 50))
         
-        # Konami code hint
         hint_text = self.font_tiny.render("Konami Code for Test Mode", True, self.GRAY)
         hint_x = self.DISPLAY_SIZE[0] - hint_text.get_width() - 10
         self.screen.blit(hint_text, (hint_x, self.DISPLAY_SIZE[1] - 50))
         
-        # Version info
         version_text = self.font_tiny.render("DoomBox v1.0", True, self.GRAY)
         self.screen.blit(version_text, (10, 10))
-        
-        # MQTT status
-        mqtt_status = "MQTT: Connected" if self.mqtt_enabled else "MQTT: Disabled"
-        mqtt_color = self.GREEN if self.mqtt_enabled else self.YELLOW
-        mqtt_text = self.font_tiny.render(mqtt_status, True, mqtt_color)
-        mqtt_x = self.DISPLAY_SIZE[0] // 2 - mqtt_text.get_width() // 2
-        self.screen.blit(mqtt_text, (mqtt_x, self.DISPLAY_SIZE[1] - 25))
         
         pygame.display.flip()
 
     def handle_controller_input(self):
-        """Handle controller input including Konami code"""
+        """Handle input events"""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
@@ -378,83 +329,59 @@ class DoomBoxKiosk:
                     return False
                 elif event.key == pygame.K_q and pygame.key.get_pressed()[pygame.K_LCTRL]:
                     return False
-            
             elif event.type == pygame.JOYBUTTONDOWN and self.controller:
                 self.handle_joystick_button(event.button)
-            
             elif event.type == pygame.JOYHATMOTION and self.controller:
                 self.handle_joystick_hat(event.value)
-        
         return True
 
     def handle_joystick_button(self, button):
         """Handle joystick button presses"""
-        # DualShock 4 button mapping
-        button_map = {
-            0: 'button_0',  # X
-            1: 'button_1',  # Circle
-            2: 'button_2',  # Square
-            3: 'button_3',  # Triangle
-        }
-        
+        button_map = {0: 'button_0', 1: 'button_1', 2: 'button_2', 3: 'button_3'}
         if button in button_map:
             self.check_konami_input(button_map[button])
 
     def handle_joystick_hat(self, hat_value):
-        """Handle D-pad input (hat)"""
-        # D-pad mappings
-        hat_map = {
-            (0, 1): 'dpad_up',
-            (0, -1): 'dpad_down',
-            (-1, 0): 'dpad_left',
-            (1, 0): 'dpad_right',
-        }
-        
+        """Handle D-pad input"""
+        hat_map = {(0, 1): 'dpad_up', (0, -1): 'dpad_down', (-1, 0): 'dpad_left', (1, 0): 'dpad_right'}
         if hat_value in hat_map:
             self.check_konami_input(hat_map[hat_value])
 
     def check_konami_input(self, input_type):
-        """Check if input matches Konami sequence"""
+        """Check Konami code"""
         current_time = time.time()
-        
-        # Reset sequence if too much time has passed
         if current_time - self.last_konami_input > self.konami_timeout:
             self.konami_input = []
         
         self.last_konami_input = current_time
         self.konami_input.append(input_type)
         
-        # Keep only the last N inputs where N is sequence length
         if len(self.konami_input) > len(self.konami_sequence):
             self.konami_input.pop(0)
         
-        # Check if sequence matches
         if self.konami_input == self.konami_sequence:
-            self.logger.info("Konami code activated! Starting test game...")
+            print("Konami code activated!")
             self.start_game("TEST_PLAYER")
             self.konami_input = []
 
     def start_game(self, player_name):
-        """Start DOOM game with player name"""
+        """Start DOOM game"""
         if self.game_running:
-            self.logger.info("Game already running!")
+            print("Game already running!")
             return
         
         self.current_player = player_name
         self.game_running = True
+        print(f"Starting DOOM for player: {player_name}")
         
-        self.logger.info(f"Starting DOOM for player: {player_name}")
-        
-        # Launch DOOM in a separate thread
         game_thread = threading.Thread(target=self._run_doom, args=(player_name,))
         game_thread.daemon = True
         game_thread.start()
 
     def _run_doom(self, player_name):
-        """Run DOOM game in subprocess"""
+        """Run DOOM in subprocess"""
         start_time = time.time()
         try:
-            # DOOM command using the compatibility wrapper
             doom_cmd = [
                 '/usr/local/bin/lzdoom',
                 '-iwad', f'{self.doom_dir}/DOOM.WAD',
@@ -464,14 +391,8 @@ class DoomBoxKiosk:
                 '+name', player_name
             ]
             
-            self.logger.info(f"Launching DOOM: {' '.join(doom_cmd)}")
+            print(f"Launching DOOM: {' '.join(doom_cmd)}")
             
-            # Log command to file
-            with open(f"{self.logs_dir}/doom.log", "a") as log_file:
-                log_file.write(f"{datetime.now()}: Starting DOOM for {player_name}\n")
-                log_file.write(f"Command: {' '.join(doom_cmd)}\n")
-            
-            # Run DOOM
             self.game_process = subprocess.Popen(
                 doom_cmd, 
                 cwd=self.doom_dir,
@@ -479,49 +400,120 @@ class DoomBoxKiosk:
                 stderr=subprocess.PIPE
             )
             
-            # Wait for game to finish
             stdout, stderr = self.game_process.communicate()
-            
-            # Calculate play time
             play_time = int(time.time() - start_time)
-            
-            # Game ended, extract score (simplified)
             score = self._extract_score(stdout, stderr)
             
-            # Don't save test scores
             if not player_name.startswith("TEST_"):
                 self.add_score(player_name, score, time_played=play_time)
             
-            self.logger.info(f"Game ended. Score: {score}, Play time: {play_time}s")
-            
-            # Log results
-            with open(f"{self.logs_dir}/doom.log", "a") as log_file:
-                log_file.write(f"{datetime.now()}: Game ended - Score: {score}, Time: {play_time}s\n")
+            print(f"Game ended. Score: {score}, Play time: {play_time}s")
             
         except Exception as e:
-            self.logger.error(f"Error running DOOM: {e}")
-            with open(f"{self.logs_dir}/doom.log", "a") as log_file:
-                log_file.write(f"{datetime.now()}: ERROR - {e}\n")
+            print(f"Error running DOOM: {e}")
         finally:
             self.game_running = False
             self.current_player = None
             self.game_process = None
 
     def _extract_score(self, stdout, stderr):
-        """Extract score from DOOM output (simplified implementation)"""
-        # This is a placeholder implementation
-        # In reality, you'd need to:
-        # 1. Parse DOOM's save files or demo files
-        # 2. Use DOOM's built-in demo recording
-        # 3. Implement a custom DOOM mod that outputs scores
-        # 4. Parse stdout/stderr for score information
-        
+        """Extract score from DOOM output"""
         import random
-        base_score = random.randint(1000, 50000)
+        return random.randint(1000, 50000)
+
+    def check_for_new_players(self):
+        """Check for new players via file trigger"""
+        current_time = time.time()
+        if current_time - self.last_check_time < 2.0:
+            return
         
-        # Add some variability based on play time if available
+        self.last_check_time = current_time
+        
         try:
-            if stdout:
-                # Look for any numbers that might be scores
-                import re
-                numbers = re.findall(r'\b\d+
+            trigger_file = f"{self.base_dir}/new_player.json"
+            if os.path.exists(trigger_file):
+                with open(trigger_file, 'r') as f:
+                    data = json.load(f)
+                
+                player_name = data.get('player_name', 'Unknown')
+                print(f"New player from file: {player_name}")
+                self.start_game(player_name)
+                os.remove(trigger_file)
+        except:
+            pass
+
+    def cleanup(self):
+        """Clean up resources"""
+        print("Cleaning up DoomBox resources...")
+        
+        if hasattr(self, 'mqtt_client') and self.mqtt_enabled:
+            try:
+                self.mqtt_client.loop_stop()
+                self.mqtt_client.disconnect()
+            except:
+                pass
+        
+        if self.game_process:
+            try:
+                self.game_process.terminate()
+                self.game_process.wait(timeout=5)
+            except:
+                try:
+                    self.game_process.kill()
+                except:
+                    pass
+        
+        pygame.quit()
+
+    def run(self):
+        """Main kiosk loop"""
+        print("Starting DoomBox main loop...")
+        
+        try:
+            while self.running:
+                if not self.handle_controller_input():
+                    break
+                
+                self.check_for_new_players()
+                
+                if not self.controller and time.time() % 10 < 0.1:
+                    self.setup_controller()
+                
+                self.draw_screen()
+                self.clock.tick(30)
+                
+        except KeyboardInterrupt:
+            print("Keyboard interrupt received, shutting down...")
+        except Exception as e:
+            print(f"Unexpected error in main loop: {e}")
+        finally:
+            self.cleanup()
+
+def signal_handler(signum, frame):
+    """Handle system signals"""
+    print(f"\nReceived signal {signum}, shutting down gracefully...")
+    global kiosk
+    if 'kiosk' in globals():
+        kiosk.running = False
+
+def main():
+    """Main entry point"""
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    if not os.environ.get('DISPLAY'):
+        print("Warning: DISPLAY environment variable not set")
+        print("Try: export DISPLAY=:0")
+    
+    try:
+        global kiosk
+        kiosk = DoomBoxKiosk()
+        kiosk.run()
+    except Exception as e:
+        print(f"Failed to start DoomBox: {e}")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
