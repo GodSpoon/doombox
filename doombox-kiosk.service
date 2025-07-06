@@ -1,0 +1,22 @@
+[Unit]
+Description=DoomBox Kiosk Application
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+User=dietpi
+Group=dietpi
+WorkingDirectory=/home/sam/SPOON_GIT/doombox
+Environment=DISPLAY=:0
+Environment=SDL_VIDEODRIVER=fbcon
+Environment=SDL_FBDEV=/dev/fb0
+ExecStartPre=/bin/sleep 5
+ExecStart=/home/sam/SPOON_GIT/doombox/venv/bin/python /home/sam/SPOON_GIT/doombox/src/kiosk-manager.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target
