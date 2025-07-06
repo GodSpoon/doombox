@@ -39,10 +39,6 @@ apt upgrade -y
 
 echo -e "${YELLOW}Installing system dependencies...${NC}"
 apt install -y \
-    python3 \
-    python3-pip \
-    python3-venv \
-    lzdoom \
     git \
     wget \
     curl \
@@ -52,14 +48,51 @@ apt install -y \
     bluez-tools \
     joystick \
     jstest-gtk \
-    xorg \
-    xinit \
-    xfce4 \
-    lightdm \
-    chromium-browser \
     feh \
     mosquitto-clients \
-    sqlite3
+    sqlite3 \
+    g++ \
+    make \
+    cmake \
+    libsdl2-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libjpeg-dev \
+    libfluidsynth-dev \
+    libgme-dev \
+    libopenal-dev \
+    libmpg123-dev \
+    libsndfile1-dev \
+    libgtk-3-dev \
+    timidity \
+    nasm \
+    libgl1-mesa-dev \
+    tar \
+    libsdl1.2-dev \
+    libglew-dev
+
+echo -e "${YELLOW}Compiling LZDoom for Radxa Zero...${NC}"
+cd /tmp
+if [ ! -d "lzdoom" ]; then
+    echo "Cloning LZDoom repository..."
+    git clone https://github.com/christianhaitian/lzdoom.git
+fi
+
+cd lzdoom
+mkdir -p build
+cd build
+
+echo "Configuring LZDoom build..."
+cmake ../.
+
+echo "Compiling LZDoom (this may take a while)..."
+make -j2
+
+echo "Installing LZDoom..."
+cp lzdoom /usr/local/bin/
+chmod +x /usr/local/bin/lzdoom
+
+echo -e "${GREEN}LZDoom compilation complete!${NC}"
 
 echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
 cd "$DOOMBOX_DIR"
@@ -366,7 +399,7 @@ class DoomBoxKiosk:
         try:
             # DOOM command
             doom_cmd = [
-                'lzdoom',
+                '/usr/local/bin/lzdoom',
                 '-iwad', f'{self.doom_dir}/DOOM.WAD',
                 '-width', '640',
                 '-height', '480',
@@ -473,21 +506,21 @@ echo -e "${YELLOW}Creating systemd service...${NC}"
 cat > /etc/systemd/system/doombox.service << EOF
 [Unit]
 Description=shmegl's DoomBox Kiosk
-After=graphical.target
-Wants=graphical.target
+After=multi-user.target
+Wants=multi-user.target
 
 [Service]
 Type=simple
 User=root
 Group=root
 WorkingDirectory=/opt/doombox
-Environment=DISPLAY=:0
-ExecStart=/opt/doombox/venv/bin/python /opt/doombox/kiosk.py
+ExecStart=/opt/doombox/start_x.sh
 Restart=always
 RestartSec=5
+Environment=HOME=/root
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
 EOF
 
 echo -e "${YELLOW}Creating startup script...${NC}"
@@ -526,32 +559,40 @@ EOF
 
 chmod +x "$DOOMBOX_DIR/pair_controller.sh"
 
-echo -e "${YELLOW}Setting up auto-login and kiosk mode...${NC}"
-# Configure LightDM for auto-login
-cat > /etc/lightdm/lightdm.conf.d/50-doombox.conf << EOF
-[Seat:*]
-autologin-user=root
-autologin-user-timeout=0
-user-session=xfce
+echo -e "${YELLOW}Setting up auto-start configuration...${NC}"
+# For DietPi, we'll use systemd service to start the kiosk
+# The service will handle starting X and the application
+
+# Create autostart script that will be called by systemd
+cat > "$DOOMBOX_DIR/start_x.sh" << 'EOF'
+#!/bin/bash
+# Start X server and DoomBox kiosk
+export DISPLAY=:0
+cd /opt/doombox
+
+# Start X server in background if not running
+if ! pgrep -x "Xorg" > /dev/null; then
+    startx /opt/doombox/start.sh &
+    sleep 5
+fi
+
+# Wait for X to be ready
+while ! xset q &>/dev/null; do
+    sleep 1
+done
+
+# Start the kiosk application
+source venv/bin/activate
+python kiosk.py
 EOF
 
-# Create autostart entry
-mkdir -p /root/.config/autostart
-cat > /root/.config/autostart/doombox.desktop << EOF
-[Desktop Entry]
-Type=Application
-Name=DoomBox
-Exec=/opt/doombox/start.sh
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
+chmod +x "$DOOMBOX_DIR/start_x.sh"
 
 echo -e "${YELLOW}Creating test scripts...${NC}"
 cat > "$DOOMBOX_DIR/test_doom.sh" << 'EOF'
 #!/bin/bash
 cd /opt/doombox/doom
-lzdoom -iwad DOOM.WAD -width 640 -height 480 +name TEST_PLAYER
+/usr/local/bin/lzdoom -iwad DOOM.WAD -width 640 -height 480 +name TEST_PLAYER
 EOF
 
 chmod +x "$DOOMBOX_DIR/test_doom.sh"
@@ -577,18 +618,21 @@ echo -e "${GREEN}=========================================="
 echo -e "  DoomBox Setup Complete!"
 echo -e "=========================================="
 echo -e "Files created in: $DOOMBOX_DIR"
+echo -e "LZDoom compiled and installed to: /usr/local/bin/lzdoom"
 echo -e ""
 echo -e "Next steps:"
 echo -e "1. Update the QR code URL in kiosk.py"
 echo -e "2. Pair your DualShock 4 controller:"
 echo -e "   ${DOOMBOX_DIR}/pair_controller.sh"
-echo -e "3. Test DOOM: ${DOOMBOX_DIR}/test_doom.sh"
+echo -e "3. Test LZDoom: ${DOOMBOX_DIR}/test_doom.sh"
 echo -e "4. Test kiosk: ${DOOMBOX_DIR}/test_kiosk.sh"
-echo -e "5. Reboot to start kiosk automatically"
+echo -e "5. Enable auto-start: systemctl enable doombox"
+echo -e "6. Reboot to start kiosk automatically"
 echo -e ""
-echo -e "The kiosk will auto-start on boot."
-echo -e "Press Ctrl+C to exit kiosk mode."
+echo -e "The kiosk will auto-start on boot with systemd."
+echo -e "Use 'systemctl status doombox' to check status."
 echo -e "Use Konami code on controller for test games!"
 echo -e "${NC}"
 
-echo -e "${YELLOW}Setup complete! Reboot to start the kiosk.${NC}"
+echo -e "${YELLOW}Note: LZDoom compilation can take 10-30 minutes on Radxa Zero.${NC}"
+echo -e "${YELLOW}If compilation fails, check build dependencies and try again.${NC}"
