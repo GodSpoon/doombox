@@ -1,549 +1,599 @@
-#!/bin/bash
-
-# shmegl's DoomBox Setup Script
-# For Radxa Zero running Debian 12 (DietPI)
-# Run as root: sudo bash setup.sh
-
-set -e
-
-echo "=========================================="
-echo "  shmegl's DoomBox Setup"
-echo "  Highest score gets a free tattoo!"
-echo "=========================================="
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Please run as root (sudo bash setup.sh)${NC}"
-    exit 1
-fi
-
-# Define paths
-DOOMBOX_DIR="/opt/doombox"
-DOOM_DIR="$DOOMBOX_DIR/doom"
-LOGS_DIR="$DOOMBOX_DIR/logs"
-
-echo -e "${YELLOW}Creating directories...${NC}"
-mkdir -p "$DOOMBOX_DIR"
-mkdir -p "$DOOM_DIR"
-mkdir -p "$LOGS_DIR"
-
-echo -e "${YELLOW}Updating system packages...${NC}"
-apt update
-apt upgrade -y
-
-echo -e "${YELLOW}Installing system dependencies...${NC}"
-apt install -y \
-    git \
-    wget \
-    curl \
-    unzip \
-    bluetooth \
-    bluez \
-    bluez-tools \
-    joystick \
-    jstest-gtk \
-    feh \
-    mosquitto-clients \
-    sqlite3 \
-    dsda-doom \
-    doom-wad-shareware \
-    python3 \
-    python3-pip \
-    python3-venv \
-    build-essential
-
-echo -e "${YELLOW}Setting up DOOM engine (dsda-doom)...${NC}"
-# Check for dsda-doom installation
-if command -v dsda-doom &> /dev/null; then
-    DOOM_ENGINE="dsda-doom"
-    echo "Found dsda-doom engine"
-elif [ -f "/usr/games/dsda-doom" ]; then
-    DOOM_ENGINE="/usr/games/dsda-doom"
-    echo "Found dsda-doom in /usr/games/"
-else
-    echo -e "${RED}dsda-doom not found! Installing from source...${NC}"
-    # Install dsda-doom from source if not available in packages
-    cd /tmp
-    git clone https://github.com/kraflab/dsda-doom.git
-    cd dsda-doom
-    apt install -y cmake libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev libsdl2-net-dev
-    mkdir build && cd build
-    cmake ..
-    make -j4
-    make install
-    DOOM_ENGINE="dsda-doom"
-fi
-
-echo "Using DOOM engine: $DOOM_ENGINE"
-
-# Create lzdoom compatibility wrapper script for existing kiosk code
-echo "Creating lzdoom compatibility wrapper for dsda-doom..."
-cat > /usr/local/bin/lzdoom << 'EOF'
-#!/bin/bash
-# DOOM engine wrapper script for DoomBox compatibility
-# Translates lzdoom/gzdoom arguments to dsda-doom compatible format
-
-DOOM_ARGS=()
-IWAD_PATH=""
-PLAYER_NAME=""
-WIDTH="640"
-HEIGHT="480"
-FULLSCREEN=false
-
-# Parse arguments to convert lzdoom/gzdoom style to dsda-doom
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -iwad)
-            IWAD_PATH="$2"
-            shift 2
-            ;;
-        -width)
-            WIDTH="$2"
-            shift 2
-            ;;
-        -height)
-            HEIGHT="$2"
-            shift 2
-            ;;
-        -fullscreen)
-            FULLSCREEN=true
-            shift
-            ;;
-        +name)
-            PLAYER_NAME="$2"
-            shift 2
-            ;;
-        *)
-            # Pass through other arguments
-            DOOM_ARGS+=("$1")
-            shift
-            ;;
-    esac
-done
-
-# Build dsda-doom command
-DOOM_CMD=(dsda-doom)
-
-if [ -n "$IWAD_PATH" ]; then
-    DOOM_CMD+=(-iwad "$IWAD_PATH")
-fi
-
-# Set video mode for dsda-doom
-DOOM_CMD+=(-width "$WIDTH" -height "$HEIGHT")
-
-# Set fullscreen mode
-if [ "$FULLSCREEN" = true ]; then
-    DOOM_CMD+=(-fullscreen)
-fi
-
-# Player name handling for dsda-doom
-if [ -n "$PLAYER_NAME" ]; then
-    # dsda-doom uses different syntax for player names
-    DOOM_CMD+=(-playername "$PLAYER_NAME")
-fi
-
-# Add any additional arguments
-DOOM_CMD+=("${DOOM_ARGS[@]}")
-
-# Create logs directory if it doesn't exist
-mkdir -p /opt/doombox/logs
-
-# Log the command for debugging
-echo "$(date): DOOM Command: ${DOOM_CMD[*]}" >> /opt/doombox/logs/doom.log
-
-# Execute dsda-doom
-exec "${DOOM_CMD[@]}"
-EOF
-
-chmod +x /usr/local/bin/lzdoom
-echo -e "${GREEN}dsda-doom installed with lzdoom compatibility wrapper!${NC}"
-
-echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
-cd "$DOOMBOX_DIR"
-python3 -m venv venv
-source venv/bin/activate
-
-echo -e "${YELLOW}Installing Python dependencies...${NC}"
-pip install --upgrade pip
-cat > requirements.txt << 'EOF'
-flask==2.3.3
-qrcode[pil]==7.4.2
-pygame==2.5.2
-requests==2.31.0
-paho-mqtt==1.6.1
-pillow==10.0.1
-psutil==5.9.6
-EOF
-
-pip install -r requirements.txt
-
-echo -e "${YELLOW}Downloading DOOM.WAD...${NC}"
-cd "$DOOM_DIR"
-if [ ! -f "DOOM.WAD" ]; then
-    wget -O "DOOM.WAD" "https://archive.org/download/theultimatedoom_doom2_doom.wad/DOOM.WAD%20%28For%20GZDoom%29/DOOM.WAD"
-    echo -e "${GREEN}DOOM.WAD downloaded successfully${NC}"
-else
-    echo -e "${GREEN}DOOM.WAD already exists${NC}"
-fi
-
-echo -e "${YELLOW}Cloning main kiosk application from repository...${NC}"
-cd "$DOOMBOX_DIR"
-# Note: Replace with actual repository URL when available
-# git clone https://github.com/your-username/doombox-kiosk.git .
-# For now, we'll create a placeholder
-echo "# Main kiosk application will be cloned from repository" > kiosk.py
-echo "# Repository URL: https://github.com/your-username/doombox-kiosk" >> kiosk.py
-
-echo -e "${YELLOW}Creating systemd service...${NC}"
-cat > /etc/systemd/system/doombox.service << 'EOF'
-[Unit]
-Description=shmegl's DoomBox Kiosk
-After=multi-user.target graphical.target
-Wants=graphical.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-WorkingDirectory=/opt/doombox
-ExecStart=/opt/doombox/start_x.sh
-Restart=always
-RestartSec=5
-Environment=HOME=/root
-Environment=DISPLAY=:0
-
-[Install]
-WantedBy=graphical.target
-EOF
-
-echo -e "${YELLOW}Creating startup scripts...${NC}"
-cat > "$DOOMBOX_DIR/start.sh" << 'EOF'
-#!/bin/bash
-cd /opt/doombox
-source venv/bin/activate
-export DISPLAY=:0
-python kiosk.py
-EOF
-
-chmod +x "$DOOMBOX_DIR/start.sh"
-
-cat > "$DOOMBOX_DIR/start_x.sh" << 'EOF'
-#!/bin/bash
-# Start X server and DoomBox kiosk
-export DISPLAY=:0
-cd /opt/doombox
-
-# Start X server in background if not running
-if ! pgrep -x "Xorg" > /dev/null; then
-    startx /opt/doombox/start.sh -- :0 -nolisten tcp &
-    sleep 5
-fi
-
-# Wait for X to be ready
-while ! xset q &>/dev/null; do
-    sleep 1
-done
-
-# Start the kiosk application
-source venv/bin/activate
-python kiosk.py
-EOF
-
-chmod +x "$DOOMBOX_DIR/start_x.sh"
-
-echo -e "${YELLOW}Setting up Bluetooth for DualShock 4...${NC}"
-# Enable Bluetooth service
-systemctl enable bluetooth
-systemctl start bluetooth
-
-# Add controller pairing script
-cat > "$DOOMBOX_DIR/pair_controller.sh" << 'EOF'
-#!/bin/bash
-echo "Put DualShock 4 in pairing mode (hold Share + PS buttons)"
-echo "Press Enter when ready..."
-read
-
-# Scan for devices
-timeout 10 bluetoothctl scan on
-
-# Instructions for manual pairing
-echo "Run 'bluetoothctl' and use these commands:"
-echo "  scan on"
-echo "  pair [MAC_ADDRESS]"
-echo "  trust [MAC_ADDRESS]"
-echo "  connect [MAC_ADDRESS]"
-EOF
-
-chmod +x "$DOOMBOX_DIR/pair_controller.sh"
-
-echo -e "${YELLOW}Creating test scripts...${NC}"
-cat > "$DOOMBOX_DIR/test_doom.sh" << 'EOF'
-#!/bin/bash
-cd /opt/doombox/doom
-export DISPLAY=:0
-/usr/local/bin/lzdoom -iwad DOOM.WAD -width 640 -height 480 +name TEST_PLAYER
-EOF
-
-chmod +x "$DOOMBOX_DIR/test_doom.sh"
-
-cat > "$DOOMBOX_DIR/test_kiosk.sh" << 'EOF'
-#!/bin/bash
-cd /opt/doombox
-source venv/bin/activate
-export DISPLAY=:0
-python kiosk.py
-EOF
-
-chmod +x "$DOOMBOX_DIR/test_kiosk.sh"
-
-cat > "$DOOMBOX_DIR/test_dsda_doom.sh" << 'EOF'
-#!/bin/bash
-cd /opt/doombox/doom
-export DISPLAY=:0
-dsda-doom -iwad DOOM.WAD -width 640 -height 480 -playername TEST_DIRECT
-EOF
-
-chmod +x "$DOOMBOX_DIR/test_dsda_doom.sh"
-
-cat > "$DOOMBOX_DIR/debug_controller.sh" << 'EOF'
-#!/bin/bash
-echo "Testing joystick detection..."
-ls /dev/input/js*
-echo ""
-echo "Controller info:"
-jstest /dev/input/js0
-EOF
-
-chmod +x "$DOOMBOX_DIR/debug_controller.sh"
-
-echo -e "${YELLOW}Creating desktop entries for XFCE...${NC}"
-mkdir -p /usr/share/applications
-mkdir -p /usr/share/desktop-directories
-
-# Create DoomBox category
-cat > /usr/share/desktop-directories/DoomBox.directory << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Directory
-Name=DoomBox
-Comment=shmegl's DoomBox Testing and Management Tools
-Icon=applications-games
-EOF
-
-# Main kiosk application
-cat > /usr/share/applications/doombox-kiosk.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=DoomBox Kiosk
-Comment=Main DoomBox kiosk application
-Exec=/opt/doombox/test_kiosk.sh
-Icon=applications-games
-Terminal=false
-Categories=Game;DoomBox;
-EOF
-
-# Test DOOM (via wrapper)
-cat > /usr/share/applications/doombox-test-doom.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Test DOOM (Wrapper)
-Comment=Test DOOM via lzdoom compatibility wrapper
-Exec=/opt/doombox/test_doom.sh
-Icon=applications-games
-Terminal=false
-Categories=Game;DoomBox;
-EOF
-
-# Test dsda-doom directly
-cat > /usr/share/applications/doombox-test-dsda.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Test dsda-doom (Direct)
-Comment=Test dsda-doom engine directly
-Exec=/opt/doombox/test_dsda_doom.sh
-Icon=applications-games
-Terminal=false
-Categories=Game;DoomBox;
-EOF
-
-# Controller debugging
-cat > /usr/share/applications/doombox-debug-controller.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Debug Controller
-Comment=Test and debug DualShock 4 controller
-Exec=x-terminal-emulator -e /opt/doombox/debug_controller.sh
-Icon=input-gaming
-Terminal=true
-Categories=System;DoomBox;
-EOF
-
-# Pair controller
-cat > /usr/share/applications/doombox-pair-controller.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Pair Controller
-Comment=Pair DualShock 4 controller via Bluetooth
-Exec=x-terminal-emulator -e /opt/doombox/pair_controller.sh
-Icon=bluetooth
-Terminal=true
-Categories=System;DoomBox;
-EOF
-
-# View logs
-cat > /usr/share/applications/doombox-view-logs.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=View DoomBox Logs
-Comment=View DoomBox system and game logs
-Exec=x-terminal-emulator -e tail -f /opt/doombox/logs/doom.log
-Icon=text-x-log
-Terminal=true
-Categories=System;DoomBox;
-EOF
-
-echo -e "${YELLOW}Updating desktop database...${NC}"
-update-desktop-database /usr/share/applications
-
-echo -e "${YELLOW}Setting up XFCE menu configuration...${NC}"
-# Create custom menu configuration for XFCE
-mkdir -p /etc/xdg/menus
-cat > /etc/xdg/menus/applications-doombox.menu << 'EOF'
-<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
- "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
-
-<Menu>
-  <Name>Applications</Name>
-  <Directory>applications.directory</Directory>
-
-  <!-- DoomBox submenu -->
-  <Menu>
-    <Name>DoomBox</Name>
-    <Directory>DoomBox.directory</Directory>
-    <Include>
-      <Category>DoomBox</Category>
-    </Include>
-  </Menu>
-
-</Menu>
-EOF
-
-echo -e "${YELLOW}Creating convenience scripts...${NC}"
-cat > "$DOOMBOX_DIR/start_kiosk_service.sh" << 'EOF'
-#!/bin/bash
-echo "Enabling and starting DoomBox kiosk service..."
-systemctl enable doombox.service
-systemctl start doombox.service
-systemctl status doombox.service
-EOF
-
-chmod +x "$DOOMBOX_DIR/start_kiosk_service.sh"
-
-cat > "$DOOMBOX_DIR/stop_kiosk_service.sh" << 'EOF'
-#!/bin/bash
-echo "Stopping DoomBox kiosk service..."
-systemctl stop doombox.service
-systemctl disable doombox.service
-EOF
-
-chmod +x "$DOOMBOX_DIR/stop_kiosk_service.sh"
-
-cat > "$DOOMBOX_DIR/view_scores.sh" << 'EOF'
-#!/bin/bash
-echo "DoomBox High Scores:"
-echo "==================="
-sqlite3 /opt/doombox/scores.db "SELECT player_name, score, timestamp FROM scores ORDER BY score DESC LIMIT 10;"
-EOF
-
-chmod +x "$DOOMBOX_DIR/view_scores.sh"
-
-# Service management desktop entries
-cat > /usr/share/applications/doombox-start-service.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Start Kiosk Service
-Comment=Enable and start the DoomBox kiosk service
-Exec=x-terminal-emulator -e /opt/doombox/start_kiosk_service.sh
-Icon=media-playback-start
-Terminal=true
-Categories=System;DoomBox;
-EOF
-
-cat > /usr/share/applications/doombox-stop-service.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Stop Kiosk Service
-Comment=Stop and disable the DoomBox kiosk service
-Exec=x-terminal-emulator -e /opt/doombox/stop_kiosk_service.sh
-Icon=media-playback-stop
-Terminal=true
-Categories=System;DoomBox;
-EOF
-
-cat > /usr/share/applications/doombox-view-scores.desktop << 'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=View High Scores
-Comment=View DoomBox high scores database
-Exec=x-terminal-emulator -e /opt/doombox/view_scores.sh
-Icon=view-list-text
-Terminal=true
-Categories=System;DoomBox;
-EOF
-
-echo -e "${YELLOW}Final desktop database update...${NC}"
-update-desktop-database /usr/share/applications
-
-echo -e "${YELLOW}Setting up auto-login for XFCE (optional)...${NC}"
-# Create auto-login configuration for DietPi
-if [ -f "/boot/dietpi.txt" ]; then
-    echo "AUTO_SETUP_AUTOMATED=1" >> /boot/dietpi.txt
-    echo "AUTO_SETUP_GLOBAL_PASSWORD=dietpi" >> /boot/dietpi.txt
-fi
-
-echo -e "${YELLOW}Setting permissions...${NC}"
-chown -R root:root "$DOOMBOX_DIR"
-chmod -R 755 "$DOOMBOX_DIR"
-
-echo -e "${GREEN}=========================================="
-echo -e "  DoomBox Setup Complete!"
-echo -e "=========================================="
-echo -e "Next steps:"
-echo -e "1. Clone the main kiosk application:"
-echo -e "   cd /opt/doombox"
-echo -e "   git clone <your-repo-url> ."
-echo -e ""
-echo -e "2. Pair your DualShock 4 controller:"
-echo -e "   /opt/doombox/pair_controller.sh"
-echo -e ""
-echo -e "3. Test components:"
-echo -e "   - Test dsda-doom: /opt/doombox/test_dsda_doom.sh"
-echo -e "   - Test wrapper: /opt/doombox/test_doom.sh"
-echo -e "   - Test kiosk: /opt/doombox/test_kiosk.sh"
-echo -e ""
-echo -e "4. Start the service:"
-echo -e "   systemctl enable doombox.service"
-echo -e "   systemctl start doombox.service"
-echo -e ""
-echo -e "5. Check XFCE Applications Menu -> DoomBox"
-echo -e "   for all testing and management tools"
-echo -e ""
-echo -e "Files created in: $DOOMBOX_DIR"
-echo -e "DOOM.WAD location: $DOOM_DIR/DOOM.WAD"
-echo -e "Logs directory: $LOGS_DIR"
-echo -e "${NC}"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>shmegl's DoomBox - Player Registration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Metal+Mania:wght@400&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Press Start 2P', monospace;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 20, 20, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(80, 20, 120, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(40, 40, 40, 0.4) 0%, transparent 50%),
+                linear-gradient(135deg, #0a0a0a, #1a1a1a, #2a1a1a);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Floating background elements */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                radial-gradient(2px 2px at 20% 30%, #666, transparent),
+                radial-gradient(2px 2px at 40% 70%, #444, transparent),
+                radial-gradient(1px 1px at 90% 40%, #888, transparent);
+            background-size: 200px 200px, 300px 300px, 150px 150px;
+            opacity: 0.3;
+            z-index: -1;
+        }
+
+        .floating-gif {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+            filter: drop-shadow(0 0 10px rgba(138, 43, 226, 0.8));
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .floating-gif:hover {
+            transform: scale(1.2);
+            filter: drop-shadow(0 0 20px rgba(138, 43, 226, 1));
+        }
+
+        @keyframes float {
+            0% { 
+                transform: translate(10vw, 10vh) rotate(0deg);
+            }
+            25% { 
+                transform: translate(80vw, 20vh) rotate(90deg);
+            }
+            50% { 
+                transform: translate(75vw, 70vh) rotate(180deg);
+            }
+            75% { 
+                transform: translate(15vw, 80vh) rotate(270deg);
+            }
+            100% { 
+                transform: translate(10vw, 10vh) rotate(360deg);
+            }
+        }
+
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .modal-image {
+            max-width: 90%;
+            max-height: 90%;
+            border: 3px solid #8a2be2;
+            box-shadow: 0 0 50px rgba(138, 43, 226, 0.8);
+        }
+
+        .container {
+            background: 
+                linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(20, 0, 20, 0.8)),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(138, 43, 226, 0.03) 2px,
+                    rgba(138, 43, 226, 0.03) 4px
+                );
+            border: 3px solid #8a2be2;
+            border-radius: 0;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 
+                0 0 30px rgba(138, 43, 226, 0.5),
+                inset 0 0 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #8a2be2, #ff0000, #8a2be2, #ff0000);
+            z-index: -1;
+            border-radius: 0;
+        }
+
+        .logo {
+            font-family: 'Metal Mania', cursive;
+            font-size: 3em;
+            color: #ff0000;
+            text-shadow: 
+                0 0 10px #ff0000,
+                0 0 20px #ff0000,
+                2px 2px 4px #000000;
+            margin-bottom: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        .subtitle {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
+            color: #8a2be2;
+            margin-bottom: 30px;
+            text-shadow: 
+                0 0 10px #8a2be2,
+                1px 1px 2px #000000;
+            line-height: 1.4;
+            animation: pulse 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.8; }
+            to { opacity: 1; }
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-shadow: 1px 1px 2px #000000;
+            letter-spacing: 1px;
+        }
+
+        input[type="text"],
+        input[type="email"] {
+            width: 100%;
+            padding: 15px;
+            background: 
+                linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(20, 0, 20, 0.6)),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 1px,
+                    rgba(138, 43, 226, 0.1) 1px,
+                    rgba(138, 43, 226, 0.1) 2px
+                );
+            border: 2px solid #8a2be2;
+            border-radius: 0;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 12px;
+            text-shadow: 1px 1px 2px #000000;
+            box-shadow: 
+                inset 0 0 10px rgba(0, 0, 0, 0.5),
+                0 0 5px rgba(138, 43, 226, 0.3);
+        }
+
+        input[type="text"]:focus,
+        input[type="email"]:focus {
+            outline: none;
+            border-color: #ff0000;
+            box-shadow: 
+                inset 0 0 10px rgba(0, 0, 0, 0.5),
+                0 0 15px rgba(255, 0, 0, 0.5),
+                0 0 25px rgba(138, 43, 226, 0.3);
+            background: 
+                linear-gradient(135deg, rgba(20, 0, 0, 0.8), rgba(40, 0, 20, 0.6)),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 1px,
+                    rgba(255, 0, 0, 0.1) 1px,
+                    rgba(255, 0, 0, 0.1) 2px
+                );
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #8a2be2;
+            margin-top: 3px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 9px;
+            line-height: 1.4;
+            text-shadow: 1px 1px 2px #000000;
+        }
+
+        .instagram-link {
+            color: #8a2be2;
+            text-decoration: none;
+            font-weight: bold;
+            text-shadow: 0 0 5px #8a2be2;
+        }
+
+        .instagram-link:hover {
+            color: #ff0000;
+            text-shadow: 0 0 10px #ff0000;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 20px;
+            background: 
+                linear-gradient(135deg, #8a2be2, #a020f0),
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(255, 255, 255, 0.1) 2px,
+                    rgba(255, 255, 255, 0.1) 4px
+                );
+            border: 3px solid #ff0000;
+            border-radius: 0;
+            color: #ffffff;
+            font-family: 'Metal Mania', cursive;
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 
+                0 0 20px rgba(138, 43, 226, 0.5),
+                inset 0 0 20px rgba(255, 255, 255, 0.1);
+            text-shadow: 2px 2px 4px #000000;
+            letter-spacing: 2px;
+        }
+
+        .submit-btn:hover {
+            background: 
+                linear-gradient(135deg, #ff0000, #ff4444),
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(255, 255, 255, 0.2) 2px,
+                    rgba(255, 255, 255, 0.2) 4px
+                );
+            box-shadow: 
+                0 0 30px rgba(255, 0, 0, 0.8),
+                inset 0 0 20px rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            border-color: #8a2be2;
+        }
+
+        .submit-btn:disabled {
+            background: linear-gradient(135deg, #333, #555);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .warning {
+            background: 
+                linear-gradient(135deg, rgba(255, 0, 0, 0.2), rgba(138, 43, 226, 0.1)),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 4px,
+                    rgba(255, 0, 0, 0.1) 4px,
+                    rgba(255, 0, 0, 0.1) 8px
+                );
+            border: 2px solid #ff0000;
+            padding: 15px;
+            border-radius: 0;
+            margin-bottom: 25px;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 9px;
+            line-height: 1.4;
+            text-shadow: 1px 1px 2px #000000;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+        }
+
+        .success {
+            background: 
+                linear-gradient(135deg, rgba(138, 43, 226, 0.3), rgba(0, 255, 0, 0.1)),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 4px,
+                    rgba(138, 43, 226, 0.1) 4px,
+                    rgba(138, 43, 226, 0.1) 8px
+                );
+            border: 2px solid #8a2be2;
+            padding: 15px;
+            border-radius: 0;
+            margin-top: 20px;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 9px;
+            line-height: 1.4;
+            display: none;
+            text-shadow: 1px 1px 2px #000000;
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.5);
+        }
+
+        .error {
+            background: 
+                linear-gradient(135deg, rgba(255, 0, 0, 0.3), rgba(0, 0, 0, 0.5)),
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 4px,
+                    rgba(255, 0, 0, 0.2) 4px,
+                    rgba(255, 0, 0, 0.2) 8px
+                );
+            border: 2px solid #ff0000;
+            padding: 15px;
+            border-radius: 0;
+            margin-top: 20px;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 9px;
+            line-height: 1.4;
+            display: none;
+            text-shadow: 1px 1px 2px #000000;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+        }
+
+        .skull-decoration {
+            font-size: 24px;
+            color: #8a2be2;
+            text-shadow: 0 0 10px #8a2be2;
+            margin: 0 10px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .logo {
+                font-size: 2em;
+                letter-spacing: 2px;
+            }
+
+            .subtitle {
+                font-size: 10px;
+            }
+
+            .floating-gif {
+                width: 60px;
+                height: 60px;
+            }
+
+            label,
+            .checkbox-label {
+                font-size: 8px;
+            }
+
+            input[type="text"],
+            input[type="email"] {
+                font-size: 10px;
+                padding: 12px;
+            }
+
+            .submit-btn {
+                font-size: 16px;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating gif -->
+    <img src="https://raw.githubusercontent.com/GodSpoon/doombox/refs/heads/main/lmao.gif" 
+         alt="Floating character" 
+         class="floating-gif" 
+         id="floatingGif">
+
+    <!-- Image modal -->
+    <div class="image-modal" id="imageModal">
+        <img src="https://raw.githubusercontent.com/GodSpoon/doombox/refs/heads/main/formsubmit.jpg" 
+             alt="Form submit" 
+             class="modal-image">
+    </div>
+
+    <div class="container">
+        <div class="logo">
+            <span class="skull-decoration">💀</span>
+            shmegl's DoomBox
+            <span class="skull-decoration">💀</span>
+        </div>
+        <div class="subtitle">
+            *** HIGHEST SCORE GETS A FREE TATTOO ***<br>
+            *** ENTER IF YOU DARE ***
+        </div>
+        
+        <div class="warning">
+            ⚠️ MANDATORY: FOLLOW @SHMEGL ON INSTAGRAM BEFORE BATTLE ⚠️
+        </div>
+
+        <form id="registrationForm">
+            <div class="form-group">
+                <label for="playerName">🎮 WARRIOR NAME</label>
+                <input type="text" id="playerName" name="playerName" required maxlength="20" 
+                       placeholder="ENTER YOUR BATTLE NAME">
+            </div>
+
+            <div class="form-group">
+                <label for="email">📧 CONTACT FREQUENCY</label>
+                <input type="email" id="email" name="email" required 
+                       placeholder="YOUR@EMAIL.HELL">
+            </div>
+
+            <div class="form-group">
+                <label for="instagram">📸 INSTAGRAM BATTLENAME</label>
+                <input type="text" id="instagram" name="instagram" required 
+                       placeholder="@YOURBATTLETAG">
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="followConfirm" name="followConfirm" required>
+                <label for="followConfirm" class="checkbox-label">
+                    ✅ I HAVE FOLLOWED THE PROPHET 
+                    <a href="https://instagram.com/shmegl" target="_blank" class="instagram-link">@SHMEGL</a> 
+                    ON THE INSTAGRAM REALM
+                </label>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="agreeTerms" name="agreeTerms" required>
+                <label for="agreeTerms" class="checkbox-label">
+                    ✅ I ACCEPT THE BLOOD PACT AND UNDERSTAND<br>
+                    THIS IS FOR GLORIOUS COMBAT PURPOSES
+                </label>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                ⚡ INITIATE HELLSPAWN PROTOCOL ⚡
+            </button>
+        </form>
+
+        <div class="success" id="successMessage">
+            🔥 REGISTRATION COMPLETE! 🔥<br>
+            RETURN TO THE DOOM MACHINE - YOUR BATTLE AWAITS!
+        </div>
+
+        <div class="error" id="errorMessage">
+            💀 SYSTEM MALFUNCTION 💀<br>
+            THE DEMONS HAVE INTERFERED - TRY AGAIN!
+        </div>
+    </div>
+
+    <script>
+        // Floating gif click handler
+        document.getElementById('floatingGif').addEventListener('click', function() {
+            document.getElementById('imageModal').style.display = 'flex';
+        });
+
+        // Close modal when clicked
+        document.getElementById('imageModal').addEventListener('click', function() {
+            this.style.display = 'none';
+        });
+
+        // Form submission handler
+        document.getElementById('registrationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const successMsg = document.getElementById('successMessage');
+            const errorMsg = document.getElementById('errorMessage');
+            
+            // Hide previous messages
+            successMsg.style.display = 'none';
+            errorMsg.style.display = 'none';
+            
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⚡ SUMMONING DEMONS... ⚡';
+            
+            // Get form data
+            const formData = {
+                player_name: document.getElementById('playerName').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                instagram_handle: document.getElementById('instagram').value.trim(),
+                instagram_follow: document.getElementById('followConfirm').checked,
+                agreed_terms: document.getElementById('agreeTerms').checked,
+                timestamp: new Date().toISOString()
+            };
+            
+            try {
+                // Method 1: Send to webhook (replace with your actual webhook URL)
+                /*
+                const response = await fetch('YOUR_WEBHOOK_URL', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                */
+                
+                // Method 2: Send to MQTT broker (if accessible from web)
+                // This would require a WebSocket MQTT client
+                
+                // Method 3: Simple local storage for demonstration
+                // In a real implementation, you'd send this to your backend
+                console.log('DOOM Warrior registration:', formData);
+                
+                // Simulate API call delay
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // For demonstration, we'll just show success
+                // In reality, this would trigger the kiosk via your chosen method
+                successMsg.style.display = 'block';
+                
+                // Reset form
+                document.getElementById('registrationForm').reset();
+                
+            } catch (error) {
+                console.error('DOOM Error:', error);
+                errorMsg.style.display = 'block';
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.textContent = '⚡ INITIATE HELLSPAWN PROTOCOL ⚡';
+            }
+        });
+
+        // Real-time validation for warrior names
+        document.getElementById('playerName').addEventListener('input', function(e) {
+            // Remove special characters that might cause issues, but keep it DOOM-themed
+            e.target.value = e.target.value.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+        });
+
+        // Auto-focus on first input
+        document.g
