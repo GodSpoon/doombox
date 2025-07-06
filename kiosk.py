@@ -691,21 +691,32 @@ class DoomBoxKiosk:
         # Get video background frame
         video_frame = self.get_video_frame()
         if video_frame:
+            # Brighten the video background
+            brightened = pygame.Surface(self.DISPLAY_SIZE)
+            brightened.fill((80, 80, 80))  # Light gray overlay for brightness
+            brightened.set_alpha(100)  # Semi-transparent
+            
             self.screen.blit(video_frame, (0, 0))
+            self.screen.blit(brightened, (0, 0))
         else:
             # Fallback static background
-            self.screen.fill(self.retro.RETRO_COLORS['BLACK'])
+            self.screen.fill(self.retro.RETRO_COLORS['DARK_GRAY'])
 
         # Calculate layout areas for 4:3 (1280x960) display
-        header_height = int(self.DISPLAY_SIZE[1] * 0.3)  # 30% of height for header
-        margin = 40
+        header_height = int(self.DISPLAY_SIZE[1] * 0.25)  # 25% of height for header
+        margin = 30
         
-        # Header area (top 30%)
+        # Header area (top 25%)
         header_rect = (0, 0, self.DISPLAY_SIZE[0], header_height)
-        self.draw_clean_overlay_box(header_rect, alpha=180)
+        self.draw_clean_overlay_box(header_rect, alpha=200)
         
-        # Main title with large Puffin Arcade Liquid font
-        title_y = 50
+        # Main title with large Puffin Arcade Liquid font and skull icons
+        title_y = 30
+        skull_icon = self.icons.get('skull')
+        if skull_icon:
+            self.screen.blit(skull_icon, (60, title_y))
+            self.screen.blit(skull_icon, (self.DISPLAY_SIZE[0] - 92, title_y))
+        
         title_surface = self.font_huge.render("shmegl's DoomBox", True, self.retro.RETRO_COLORS['TERMINAL_AMBER'])
         title_rect = title_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=title_y)
         
@@ -716,19 +727,25 @@ class DoomBoxKiosk:
         
         self.screen.blit(title_surface, title_rect)
         
-        # Subtitle with trophy icon
-        subtitle_y = title_y + 100
-        trophy_icon = self.icons.get('trophy')
-        if trophy_icon:
-            trophy_x = self.DISPLAY_SIZE[0] // 2 - 200
-            self.screen.blit(trophy_icon, (trophy_x, subtitle_y))
+        # Subtitle with fire icon
+        subtitle_y = title_y + 90
+        fire_icon = self.icons.get('fire')
+        if fire_icon:
+            fire_x = self.DISPLAY_SIZE[0] // 2 - 250
+            self.screen.blit(fire_icon, (fire_x, subtitle_y))
+            self.screen.blit(fire_icon, (self.DISPLAY_SIZE[0] // 2 + 220, subtitle_y))
         
         subtitle_surface = self.font_large.render("Highest score gets a free tattoo!", True, self.retro.RETRO_COLORS['FIRE_RED'])
         subtitle_rect = subtitle_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=subtitle_y)
         self.screen.blit(subtitle_surface, subtitle_rect)
         
-        # Instruction text
-        instruction_y = subtitle_y + 60
+        # Instruction text with lightning icon
+        instruction_y = subtitle_y + 50
+        lightning_icon = self.icons.get('lightning')
+        if lightning_icon:
+            lightning_x = self.DISPLAY_SIZE[0] // 2 - 200
+            self.screen.blit(lightning_icon, (lightning_x, instruction_y))
+        
         instruction_surface = self.font_medium.render("SCAN THE QR CODE TO ENTER THE BATTLE", True, self.retro.RETRO_COLORS['CYBER_GREEN'])
         instruction_rect = instruction_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=instruction_y)
         self.screen.blit(instruction_surface, instruction_rect)
@@ -736,54 +753,54 @@ class DoomBoxKiosk:
         # Left side - QR Code area
         qr_x = margin
         qr_y = header_height + margin
-        qr_size = 300
-        qr_box_width = qr_size + 80
-        qr_box_height = qr_size + 100
+        qr_size = 280
+        qr_box_width = qr_size + 60
+        qr_box_height = qr_size + 80
         
         qr_box_rect = (qr_x, qr_y, qr_box_width, qr_box_height)
-        self.draw_clean_overlay_box(qr_box_rect, alpha=220)
+        self.draw_clean_overlay_box(qr_box_rect, alpha=240)
         
-        # QR label with icon
+        # QR label with QR icon
         qr_icon = self.icons.get('qr')
         if qr_icon:
-            self.screen.blit(qr_icon, (qr_x + 20, qr_y + 20))
+            self.screen.blit(qr_icon, (qr_x + 15, qr_y + 15))
         
         qr_label = self.font_small.render("SCAN TO PLAY", True, self.retro.RETRO_COLORS['CYBER_GREEN'])
-        self.screen.blit(qr_label, (qr_x + 60, qr_y + 25))
+        self.screen.blit(qr_label, (qr_x + 55, qr_y + 20))
         
         # Scale and display QR code
         qr_scaled = pygame.transform.scale(self.qr_image, (qr_size, qr_size))
         qr_display_x = qr_x + (qr_box_width - qr_size) // 2
-        qr_display_y = qr_y + 60
+        qr_display_y = qr_y + 50
         self.screen.blit(qr_scaled, (qr_display_x, qr_display_y))
 
         # Right side - High Scores area
         scores_x = qr_x + qr_box_width + margin
         scores_y = header_height + margin
         scores_w = self.DISPLAY_SIZE[0] - scores_x - margin
-        scores_h = 500
+        scores_h = 450
         
         scores_box_rect = (scores_x, scores_y, scores_w, scores_h)
-        self.draw_clean_overlay_box(scores_box_rect, alpha=220)
+        self.draw_clean_overlay_box(scores_box_rect, alpha=240)
         
-        # Scores header with icon
-        star_icon = self.icons.get('star')
-        if star_icon:
-            self.screen.blit(star_icon, (scores_x + 20, scores_y + 20))
+        # Scores header with trophy icon
+        trophy_icon = self.icons.get('trophy')
+        if trophy_icon:
+            self.screen.blit(trophy_icon, (scores_x + 15, scores_y + 15))
         
         scores_header = self.font_large.render("TOP WARRIORS", True, self.retro.RETRO_COLORS['TERMINAL_AMBER'])
-        self.screen.blit(scores_header, (scores_x + 60, scores_y + 20))
+        self.screen.blit(scores_header, (scores_x + 55, scores_y + 15))
         
         # Get and display scores
         scores = self.get_top_scores()
-        y_offset = scores_y + 80
+        y_offset = scores_y + 70
         
         if scores:
             for i, (name, score, timestamp, level) in enumerate(scores):
                 if i >= 10:  # Limit to top 10
                     break
                     
-                # Rank colors
+                # Rank colors and different icons for each rank
                 if i == 0:
                     color = self.retro.RETRO_COLORS['TERMINAL_AMBER']  # Gold
                     rank_icon = self.icons.get('trophy')
@@ -799,60 +816,68 @@ class DoomBoxKiosk:
                 
                 # Draw rank icon
                 if rank_icon:
-                    self.screen.blit(rank_icon, (scores_x + 20, y_offset + i * 35))
+                    self.screen.blit(rank_icon, (scores_x + 15, y_offset + i * 32))
                 
                 # Format score line
                 position = f"{i+1:2d}."
-                display_name = name[:15] + "..." if len(name) > 15 else name
+                display_name = name[:18] + "..." if len(name) > 18 else name
                 score_text = f"{position} {display_name}: {score:,}"
                 
                 score_surface = self.font_small.render(score_text, True, color)
-                self.screen.blit(score_surface, (scores_x + 60, y_offset + i * 35 + 5))
+                self.screen.blit(score_surface, (scores_x + 55, y_offset + i * 32 + 3))
         else:
-            # No scores message
+            # No scores message with gem icon
+            gem_icon = self.icons.get('gem')
+            if gem_icon:
+                self.screen.blit(gem_icon, (scores_x + scores_w//2 - 150, y_offset + 140))
+            
             no_scores_surface = self.font_medium.render("NO SCORES YET - BE THE FIRST!", True, self.retro.RETRO_COLORS['HOT_MAGENTA'])
             no_scores_rect = no_scores_surface.get_rect(centerx=scores_x + scores_w//2, y=y_offset + 150)
             self.screen.blit(no_scores_surface, no_scores_rect)
 
         # Bottom status bar
-        status_y = self.DISPLAY_SIZE[1] - 120
-        status_rect = (0, status_y, self.DISPLAY_SIZE[0], 120)
-        self.draw_clean_overlay_box(status_rect, alpha=240)
+        status_y = self.DISPLAY_SIZE[1] - 100
+        status_rect = (0, status_y, self.DISPLAY_SIZE[0], 100)
+        self.draw_clean_overlay_box(status_rect, alpha=250)
         
-        # Left side status - Controller
+        # Left side status - Controller with controller icon
         controller_icon = self.icons.get('controller')
         if controller_icon:
-            self.screen.blit(controller_icon, (20, status_y + 20))
+            self.screen.blit(controller_icon, (15, status_y + 15))
         
         controller_color = self.retro.RETRO_COLORS['LIME_SHOCK'] if self.controller_connected else self.retro.RETRO_COLORS['FIRE_RED']
         controller_text = "CONTROLLER: ONLINE" if self.controller_connected else "CONTROLLER: OFFLINE"
         controller_surface = self.font_tiny.render(controller_text, True, controller_color)
-        self.screen.blit(controller_surface, (60, status_y + 30))
+        self.screen.blit(controller_surface, (55, status_y + 25))
         
-        # Center status - Game status
+        # Center status - Game status with lightning icon
         if self.game_running and self.current_player:
             lightning_icon = self.icons.get('lightning')
             if lightning_icon:
-                self.screen.blit(lightning_icon, (self.DISPLAY_SIZE[0] // 2 - 200, status_y + 20))
+                self.screen.blit(lightning_icon, (self.DISPLAY_SIZE[0] // 2 - 150, status_y + 15))
             
             game_text = f"NOW PLAYING: {self.current_player}"
             game_surface = self.font_small.render(game_text, True, self.retro.RETRO_COLORS['LIME_SHOCK'])
-            game_rect = game_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=status_y + 25)
+            game_rect = game_surface.get_rect(centerx=self.DISPLAY_SIZE[0] // 2, y=status_y + 20)
             self.screen.blit(game_surface, game_rect)
         
-        # Right side status - URL and instructions
+        # Right side status - URL and instructions with wifi icon
         wifi_icon = self.icons.get('wifi')
         if wifi_icon:
-            self.screen.blit(wifi_icon, (self.DISPLAY_SIZE[0] - 350, status_y + 20))
+            self.screen.blit(wifi_icon, (self.DISPLAY_SIZE[0] - 300, status_y + 15))
         
         url_text = f"FORM URL: {self.form_url}"
         url_surface = self.font_tiny.render(url_text, True, self.retro.RETRO_COLORS['ICE_BLUE'])
-        self.screen.blit(url_surface, (self.DISPLAY_SIZE[0] - 320, status_y + 30))
+        self.screen.blit(url_surface, (self.DISPLAY_SIZE[0] - 270, status_y + 25))
         
-        # Konami code hint
+        # Konami code hint with skull icon
+        skull_icon = self.icons.get('skull')
+        if skull_icon:
+            self.screen.blit(skull_icon, (self.DISPLAY_SIZE[0] - 300, status_y + 50))
+        
         konami_text = "KONAMI CODE FOR TEST MODE"
         konami_surface = self.font_tiny.render(konami_text, True, self.retro.RETRO_COLORS['PURPLE_HAZE'])
-        self.screen.blit(konami_surface, (self.DISPLAY_SIZE[0] - 320, status_y + 60))
+        self.screen.blit(konami_surface, (self.DISPLAY_SIZE[0] - 270, status_y + 60))
         
         # Update animation frame (for any remaining animations)
         self.retro.update_frame()
