@@ -1,5 +1,5 @@
 pygame==2.5.2
-qrqrcode[pil]==7.4.2
+qrcode[pil]==7.4.2
 numpy<2.0.0
 opencv-python==4.8.1.78
 paho-mqtt>=1.6.1
