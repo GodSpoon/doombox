@@ -408,4 +408,169 @@ python3 scripts/performance-monitor.py --interval 5
 
 ---
 
-*Built for satan 🖤*
+## MQTT Setup & Remote Control
+
+### Overview
+The DoomBox uses MQTT for remote communication between your development host and the Radxa Zero kiosk. This allows you to trigger games remotely, monitor status, and test functionality.
+
+### Quick Setup
+
+#### 1. Setup MQTT Broker on Your Arch Host
+```bash
+# Install and configure mosquitto
+./scripts/setup-mqtt-broker.sh
+
+# Configure IP addresses automatically
+./scripts/configure-mqtt-ip.sh
+
+# Test the setup
+./scripts/test-mqtt-setup.sh
+```
+
+#### 2. Deploy to Radxa
+```bash
+# Full deployment (configure, commit, push, deploy)
+./scripts/deploy-mqtt.sh
+
+# Or manual deployment
+git add . && git commit -m "MQTT setup" && git push
+ssh root@10.0.0.234 "cd /root/doombox && git pull"
+```
+
+### Testing Commands
+
+#### From Your Host (Launch Games Remotely)
+```bash
+# Launch game for specific player
+python3 scripts/mqtt-test-client.py --broker localhost launch TestPlayer
+
+# Simulate web form registration
+python3 scripts/mqtt-test-client.py --broker localhost register TestPlayer
+
+# Get kiosk status
+python3 scripts/mqtt-test-client.py --broker localhost status
+
+# Monitor all messages
+python3 scripts/mqtt-test-client.py --broker localhost monitor
+
+# Interactive mode
+python3 scripts/mqtt-test-client.py --broker localhost interactive
+```
+
+#### From Radxa (Test Connection)
+```bash
+# Test connection to your host
+python3 scripts/mqtt-test-client.py --broker 10.0.0.100 status
+
+# Launch local test
+python3 scripts/mqtt-test-client.py --broker 10.0.0.100 launch LocalTest
+```
+
+### MQTT Topics
+
+| Topic | Purpose | Message Format |
+|-------|---------|----------------|
+| `doombox/commands` | Game control commands | `{"command": "launch_game", "player_name": "...", "skill": 3}` |
+| `doombox/start_game` | Web form registrations | `{"player_name": "...", "timestamp": "..."}` |
+| `doombox/status` | Status updates | `{"connected": true, "game_running": false, ...}` |
+| `doombox/scores` | Score updates | `{"player_name": "...", "score": 12345, ...}` |
+| `doombox/players` | Player events | `{"action": "registered", "player_name": "..."}` |
+| `doombox/system` | System commands | `{"action": "reboot"}` |
+
+### Commands
+
+#### Launch Game
+```json
+{
+  "command": "launch_game",
+  "player_name": "TestPlayer",
+  "skill": 3,
+  "timestamp": "2025-07-06T12:00:00"
+}
+```
+
+#### Stop Game
+```json
+{
+  "command": "stop_game",
+  "timestamp": "2025-07-06T12:00:00"
+}
+```
+
+#### Get Status
+```json
+{
+  "command": "get_status",
+  "timestamp": "2025-07-06T12:00:00"
+}
+```
+
+### Configuration
+
+The MQTT settings are configured in `config/config.py`:
+- `MQTT_BROKER`: IP address of your host machine
+- `MQTT_PORT`: Default 1883
+- `MQTT_TOPICS`: Topic definitions
+
+### Troubleshooting
+
+#### Connection Issues
+```bash
+# Check mosquitto service
+sudo systemctl status mosquitto
+
+# Test basic connectivity
+mosquitto_pub -h localhost -t "test" -m "hello"
+mosquitto_sub -h localhost -t "test"
+
+# Check firewall
+sudo ufw status
+sudo ufw allow 1883
+```
+
+#### IP Address Issues
+```bash
+# Reconfigure IP addresses
+./scripts/configure-mqtt-ip.sh
+
+# Check current IP
+hostname -I
+```
+
+#### Python Dependencies
+```bash
+# Install on host
+pip3 install paho-mqtt flask
+
+# Install on Radxa
+ssh root@10.0.0.234 "pip3 install paho-mqtt flask"
+```
+
+---
+
+## MQTT Development Log
+
+### 2025-07-06 - Initial MQTT Setup
+- ✅ Created MQTT broker setup script for Arch host
+- ✅ Implemented comprehensive test client with interactive mode
+- ✅ Updated configuration to use host IP (10.0.0.100)
+- ✅ Added support for web form integration via `doombox/start_game` topic
+- ✅ Created deployment scripts for automatic push/pull workflow
+- ✅ Added end-to-end testing with multiple scenarios
+- ✅ Documented all MQTT topics and message formats
+
+**Test Commands Created:**
+- `./scripts/setup-mqtt-broker.sh` - Install and configure mosquitto
+- `./scripts/configure-mqtt-ip.sh` - Auto-detect and configure IP addresses
+- `./scripts/test-mqtt-setup.sh` - Complete end-to-end testing
+- `./scripts/deploy-mqtt.sh` - Full deployment workflow
+- `python3 scripts/mqtt-test-client.py` - Interactive test client
+
+**Features:**
+- Remote game launching from development host
+- Web form simulation for player registration
+- Real-time status monitoring
+- Multiple command types (launch, stop, status, register)
+- Interactive test mode for development
+- Automatic IP configuration
+- Comprehensive error handling and logging

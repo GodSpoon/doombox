@@ -23,23 +23,31 @@ logger = logging.getLogger(__name__)
 class DoomBoxMQTTClient:
     """MQTT client for DoomBox remote control"""
     
-    def __init__(self, broker_host: str = "localhost", broker_port: int = 1883):
-        self.broker_host = broker_host
-        self.broker_port = broker_port
+    def __init__(self, broker_host: str = None, broker_port: int = None):
+        # Try to import configuration
+        try:
+            from config.config import MQTT_BROKER, MQTT_PORT, MQTT_TOPICS
+            self.broker_host = broker_host or MQTT_BROKER
+            self.broker_port = broker_port or MQTT_PORT
+            self.topics = MQTT_TOPICS
+        except ImportError:
+            # Fallback configuration
+            self.broker_host = broker_host or "localhost"
+            self.broker_port = broker_port or 1883
+            self.topics = {
+                'commands': 'doombox/commands',
+                'status': 'doombox/status',
+                'scores': 'doombox/scores',
+                'players': 'doombox/players',
+                'system': 'doombox/system',
+                'start_game': 'doombox/start_game'
+            }
+        
         self.client_id = f"doombox_{int(time.time())}"
         
         # MQTT client
         self.client = mqtt.Client(client_id=self.client_id)
         self.connected = False
-        
-        # Topics
-        self.topics = {
-            'commands': 'doombox/commands',
-            'status': 'doombox/status',
-            'scores': 'doombox/scores',
-            'players': 'doombox/players',
-            'system': 'doombox/system'
-        }
         
         # Callbacks
         self.message_callbacks: Dict[str, Callable] = {}
@@ -90,6 +98,8 @@ class DoomBoxMQTTClient:
             # Route message to appropriate handler
             if topic == self.topics['commands']:
                 self._handle_command(data)
+            elif topic == self.topics['start_game']:
+                self._handle_start_game(data)
             elif topic == self.topics['status']:
                 self._handle_status_request(data)
             elif topic == self.topics['players']:
@@ -137,6 +147,24 @@ class DoomBoxMQTTClient:
         
         else:
             logger.warning(f"Unknown command: {command}")
+    
+    def _handle_start_game(self, data: Dict[str, Any]):
+        """Handle start game messages from web form"""
+        player_name = data.get('player_name', 'Unknown')
+        skill = 3  # Default skill level
+        
+        logger.info(f"Start game request from web form: {player_name}")
+        
+        if self.game_launcher:
+            success = self.game_launcher.launch_game(player_name, skill)
+            self._publish_response('game_launch_response', {
+                'success': success,
+                'player_name': player_name,
+                'source': 'web_form',
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            logger.error("Game launcher not available")
     
     def _handle_status_request(self, data: Dict[str, Any]):
         """Handle status request messages"""

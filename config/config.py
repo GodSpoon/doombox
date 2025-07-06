@@ -86,9 +86,17 @@ STATUS_COLORS = {
 
 # MQTT Settings
 MQTT_ENABLED = True
-MQTT_BROKER = "localhost"
+MQTT_BROKER = "10.0.0.215"  # Your Arch host IP - update this to match your actual IP
 MQTT_PORT = 1883
-MQTT_TOPIC = "doombox/start_game"
+MQTT_KEEPALIVE = 60
+MQTT_TOPICS = {
+    'commands': 'doombox/commands',
+    'status': 'doombox/status',
+    'scores': 'doombox/scores',
+    'players': 'doombox/players',
+    'system': 'doombox/system',
+    'start_game': 'doombox/start_game'  # For web form compatibility
+}
 
 # Controller Settings
 CONTROLLER_NAME = "Sony Interactive Entertainment Wireless Controller"  # PS4 Controller

@@ -23,9 +23,14 @@ import re
 app = Flask(__name__)
 
 # Configuration
-MQTT_BROKER = "your-kiosk-ip"  # Replace with kiosk IP
-MQTT_PORT = 1883
-MQTT_TOPIC = "doombox/start_game"
+try:
+    from config.config import MQTT_BROKER, MQTT_PORT, MQTT_TOPICS
+    MQTT_TOPIC = MQTT_TOPICS['start_game']
+except ImportError:
+    # Fallback configuration
+    MQTT_BROKER = "10.0.0.215"  # Your Arch host IP
+    MQTT_PORT = 1883
+    MQTT_TOPIC = "doombox/start_game"
 
 # File trigger path (if webhook runs on same machine as kiosk)
 TRIGGER_FILE = "/opt/doombox/new_player.json"
