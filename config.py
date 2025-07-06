@@ -1,124 +1,90 @@
 """
-DoomBox Retro Configuration File
-Enhanced settings for the retro aesthetic kiosk
+DoomBox Configuration File - Optimized for Radxa Zero
+Simplified and optimized for ARM hardware
 """
 
-# Display Settings
+import os
+
+# Display Settings - Optimized for Radxa Zero
 DISPLAY_SIZE = (1280, 960)
 DOOM_RESOLUTION = (640, 480)
 FULLSCREEN = True
-FPS_LIMIT = 60  # Higher FPS for smooth animations
+FPS_LIMIT = 30  # Reduced for ARM processor
 
-# Kiosk Text - Enhanced for retro feel
+# Kiosk Text
 TITLE = "shmegl's DoomBox"
 SUBTITLE = "Highest score gets a free tattoo!"
 INSTRUCTION = "SCAN THE QR CODE TO ENTER THE BATTLE"
-QR_LABEL = ">> SCAN TO ENTER <<"
+QR_LABEL = ">> SCAN TO PLAY <<"
 
-# URLs and Integration - Updated URL
+# URLs and Integration
 GITHUB_FORM_URL = "http://shmeglsdoombox.spoon.rip"
 WEBHOOK_URL = "http://your-server:5000/register"  # Optional
 INSTAGRAM_HANDLE = "@shmegl"
 
-# Retro Color Palette - Classic arcade machine colors
-RETRO_COLORS = {
-    # Base colors
+# Color Palette - Simplified for better performance
+COLORS = {
     'BLACK': (0, 0, 0),
-    'DARK_GRAY': (32, 32, 32),
-    'GRAY': (64, 64, 64),
-    'LIGHT_GRAY': (128, 128, 128),
     'WHITE': (255, 255, 255),
-    
-    # Bright primary colors
-    'BRIGHT_RED': (255, 0, 0),
-    'BRIGHT_GREEN': (0, 255, 0),
-    'BRIGHT_BLUE': (0, 0, 255),
-    'BRIGHT_YELLOW': (255, 255, 0),
-    'BRIGHT_CYAN': (0, 255, 255),
-    'BRIGHT_MAGENTA': (255, 0, 255),
-    
-    # Dark variants
-    'DARK_RED': (128, 0, 0),
-    'DARK_GREEN': (0, 128, 0),
-    'DARK_BLUE': (0, 0, 128),
-    
-    # Special colors
-    'ORANGE': (255, 128, 0),
-    'PURPLE': (128, 0, 255),
-    'LIME': (128, 255, 0),
-    'PINK': (255, 128, 255),
-    'TEAL': (0, 128, 128),
-    'AMBER': (255, 191, 0),
-    'BLOOD_RED': (139, 0, 0),
-    
-    # CRT monitor colors
-    'CRT_GREEN': (0, 255, 0),
-    'CRT_AMBER': (255, 176, 0),
-    'CRT_WHITE': (192, 192, 192),
+    'RED': (255, 0, 0),
+    'GREEN': (0, 255, 0),
+    'BLUE': (0, 0, 255),
+    'YELLOW': (255, 255, 0),
+    'CYAN': (0, 255, 255),
+    'MAGENTA': (255, 0, 255),
+    'GRAY': (128, 128, 128),
+    'DARK_GRAY': (64, 64, 64),
+    'LIGHT_GRAY': (192, 192, 192),
+    'ORANGE': (255, 165, 0),
+    'PURPLE': (128, 0, 128),
+    'PINK': (255, 192, 203),
+    'BROWN': (165, 42, 42),
+    'LIME': (0, 255, 0),
 }
 
-# Animation Settings
-TITLE_PULSE_SPEED = 0.1
-SUBTITLE_COLOR_CYCLE_SPEED = 30  # frames
-BORDER_COLOR_CYCLE_SPEED = 20   # frames
-QR_LABEL_PULSE_SPEED = 0.2
+# Animation Settings - Reduced for performance
+TITLE_PULSE_SPEED = 0.05  # Slower for ARM
+ANIMATION_ENABLED = True
+EFFECTS_ENABLED = False  # Disable heavy effects on ARM
 
 # UI Layout Settings
-QR_CODE_SIZE = 400
-QR_CODE_POSITION = (100, 280)
-QR_BORDER_SIZE = 8
-QR_FRAME_PADDING = 20
+QR_CODE_SIZE = 300
+QR_CODE_POSITION = (150, 300)
+QR_BORDER_SIZE = 4
 
-SCORES_PANEL_POSITION = (600, 280)
-SCORES_PANEL_SIZE = (600, 480)
+SCORES_PANEL_POSITION = (550, 300)
+SCORES_PANEL_SIZE = (600, 400)
 MAX_SCORES_DISPLAYED = 10
 
-# Typography Settings
+# Typography Settings - Optimized fonts
 FONT_SIZES = {
-    'TITLE': 120,      # Main title
-    'SUBTITLE': 72,    # Subtitle  
-    'HEADER': 48,      # Section headers
+    'TITLE': 96,       # Reduced from 120
+    'SUBTITLE': 64,    # Reduced from 72
+    'HEADER': 48,      # Headers
     'CONTENT': 32,     # Main content
     'FOOTER': 24,      # Footer text
     'TINY': 18,        # Very small text
 }
 
-# Visual Effects Settings
-SCANLINES_ENABLED = True
-SCANLINES_INTENSITY = 0.05
-
-GLOW_EFFECTS_ENABLED = True
-GLOW_RADIUS = 3
-
-GRID_BACKGROUND_ENABLED = True
-GRID_SIZE = 40
-
-CRT_EFFECTS = {
-    'SCANLINES': True,
-    'GLOW': True,
-    'GRID': True,
-    'BORDER_ANIMATION': True,
-}
-
 # Score Display Colors
 SCORE_COLORS = {
-    'FIRST_PLACE': 'BRIGHT_YELLOW',   # Gold
-    'SECOND_PLACE': 'LIGHT_GRAY',     # Silver  
-    'THIRD_PLACE': 'ORANGE',          # Bronze
-    'OTHER_PLACES': 'WHITE',          # Regular
-    'NO_SCORES': 'GRAY',              # When empty
+    'FIRST_PLACE': 'YELLOW',      # Gold
+    'SECOND_PLACE': 'LIGHT_GRAY', # Silver  
+    'THIRD_PLACE': 'ORANGE',      # Bronze
+    'OTHER_PLACES': 'WHITE',      # Regular
+    'NO_SCORES': 'GRAY',          # When empty
 }
 
 # Status Colors
 STATUS_COLORS = {
-    'CONTROLLER_ONLINE': 'BRIGHT_GREEN',
-    'CONTROLLER_OFFLINE': 'BRIGHT_RED',
-    'GAME_RUNNING': 'BRIGHT_WHITE',
-    'WAITING': 'BRIGHT_CYAN',
-    'ERROR': 'BRIGHT_RED',
+    'CONTROLLER_ONLINE': 'GREEN',
+    'CONTROLLER_OFFLINE': 'RED',
+    'GAME_RUNNING': 'CYAN',
+    'WAITING': 'YELLOW',
+    'ERROR': 'RED',
 }
 
-# MQTT Settings (Optional)
+# MQTT Settings
 MQTT_ENABLED = True
 MQTT_BROKER = "localhost"
 MQTT_PORT = 1883
@@ -127,21 +93,21 @@ MQTT_TOPIC = "doombox/start_game"
 # Controller Settings
 CONTROLLER_NAME = "Sony Interactive Entertainment Wireless Controller"  # PS4 Controller
 AUTO_RECONNECT = True
+CONTROLLER_CHECK_INTERVAL = 5  # seconds
 
-# Konami Code (controller button mapping)
-KONAMI_BUTTONS = [
-    'dpad_up', 'dpad_up', 'dpad_down', 'dpad_down',
-    'dpad_left', 'dpad_right', 'dpad_left', 'dpad_right',
-    'button_1', 'button_0'  # Circle, X (reversed for emphasis)
-]
+# Konami Code (simplified button mapping)
+KONAMI_SEQUENCE = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right', 'b', 'a']
+KONAMI_TIMEOUT = 5.0  # seconds
 
 # Game Settings
-DOOM_EXECUTABLE = "lzdoom"
+DOOM_EXECUTABLE = "/usr/local/bin/lzdoom"  # Our compatibility wrapper
 DOOM_WAD_PATH = "/opt/doombox/doom/DOOM.WAD"
 DOOM_EXTRA_ARGS = [
     "-width", str(DOOM_RESOLUTION[0]),
     "-height", str(DOOM_RESOLUTION[1]),
-    "-fullscreen" if FULLSCREEN else "-windowed"
+    "-fullscreen" if FULLSCREEN else "-windowed",
+    "-nomusic",  # Disable music for better performance
+    "-nosound"   # Disable sound for better performance (comment out if you want audio)
 ]
 
 # File Paths
@@ -149,21 +115,13 @@ BASE_DIR = "/opt/doombox"
 LOGS_DIR = f"{BASE_DIR}/logs"
 TRIGGER_FILE = f"{BASE_DIR}/new_player.json"
 SCORE_DATABASE = f"{BASE_DIR}/scores.db"
+DOOM_DIR = f"{BASE_DIR}/doom"
 
-# Auto-start Settings
-AUTO_START_ON_BOOT = True
-AUTO_LOGIN_USER = "root"
-
-# Security Settings (for production)
-SANITIZE_PLAYER_NAMES = True
-MAX_PLAYER_NAME_LENGTH = 20
-ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
-
-# Logging
+# Logging Configuration
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR
 LOG_FILE = f"{LOGS_DIR}/doombox.log"
-LOG_MAX_SIZE = 10 * 1024 * 1024  # 10MB
-LOG_BACKUP_COUNT = 5
+LOG_MAX_SIZE = 5 * 1024 * 1024  # 5MB (reduced for ARM storage)
+LOG_BACKUP_COUNT = 3
 
 # Feature Flags
 ENABLE_MQTT = True
@@ -172,34 +130,62 @@ ENABLE_WEBHOOK_CHECK = False
 ENABLE_CONTROLLER = True
 ENABLE_KONAMI_CODE = True
 ENABLE_TEST_MODE = True
-ENABLE_RETRO_EFFECTS = True
+ENABLE_EFFECTS = False  # Disable heavy visual effects
+
+# Performance Settings - Optimized for ARM
+PYGAME_BUFFER_SIZE = 256  # Reduced buffer
+AUDIO_ENABLED = False     # Disable audio for better performance
+VSYNC_ENABLED = False     # Disable VSYNC for ARM
+RENDER_SCALE = 1.0        # No scaling for better performance
+
+# Timing Settings
+QR_CODE_REFRESH_INTERVAL = 300  # 5 minutes
+SCORE_DISPLAY_DURATION = 10
+GAME_START_DELAY = 2
+INPUT_POLLING_RATE = 1/30  # 30 FPS
+FILE_CHECK_INTERVAL = 1    # Check trigger file every second
 
 # Test Mode Settings
 TEST_PLAYER_PREFIX = "TEST_"
 TEST_SCORES_IN_DATABASE = False
+DEMO_SCORE_RANGE = (100, 9999)
 
-# Timing Settings (seconds)
-QR_CODE_REFRESH_INTERVAL = 300  # 5 minutes
-SCORE_DISPLAY_DURATION = 10
-CONTROLLER_CHECK_INTERVAL = 5
-GAME_START_DELAY = 2
-INPUT_POLLING_RATE = 1/60  # 60 FPS
+# Network Settings
+NETWORK_TIMEOUT = 10  # seconds
+RETRY_ATTEMPTS = 3
+RETRY_DELAY = 2  # seconds
 
-# Prize Settings
-PRIZE_DESCRIPTION = "free tattoo"
-WINNER_NOTIFICATION = True
-WINNER_DISPLAY_DURATION = 30  # seconds
+# Hardware-Specific Settings (Radxa Zero)
+ARM_OPTIMIZATIONS = True
+GPU_MEMORY_SPLIT = 64    # MB for GPU (reduced)
+DISABLE_COMPOSITING = True
+FORCE_SOFTWARE_RENDER = False
 
-# Advanced Retro Settings
-PIXEL_PERFECT_RENDERING = True
-CRISP_SCALING = True  # No interpolation for pixel art
-RETRO_FONT_RENDERING = False  # Disable antialiasing for pixel fonts
+# QR Code Settings
+QR_CODE_SETTINGS = {
+    'VERSION': 2,         # Smaller QR code for performance
+    'ERROR_CORRECTION': 'L',  # Low error correction for smaller size
+    'BOX_SIZE': 8,        # Reduced box size
+    'BORDER': 4,          # Reduced border
+    'FILL_COLOR': 'white',
+    'BACK_COLOR': 'black',
+}
 
-# Custom Messages - Enhanced for retro feel
+# Database Settings
+DB_TIMEOUT = 30  # seconds
+DB_RETRY_ATTEMPTS = 3
+AUTO_VACUUM = True
+
+# Security Settings
+SANITIZE_PLAYER_NAMES = True
+MAX_PLAYER_NAME_LENGTH = 20
+ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+
+# Messages
 MESSAGES = {
-    'GAME_STARTING': ">>> INITIATING DOOM PROTOCOL FOR {player_name} <<<",
+    'GAME_STARTING': ">>> STARTING DOOM FOR {player_name} <<<",
     'GAME_ENDED': "GAME OVER! FINAL SCORE: {score}",
-    'NEW_HIGH_SCORE': "🎉 *** NEW HIGH SCORE ACHIEVED *** 🎉",
+    'NEW_HIGH_SCORE': "*** NEW HIGH SCORE! ***",
     'CONTROLLER_DISCONNECTED': "CONTROLLER OFFLINE - PLEASE RECONNECT",
     'WAITING_FOR_PLAYERS': "AWAITING WARRIORS...",
     'KONAMI_ACTIVATED': "*** TEST MODE ACTIVATED ***",
@@ -209,120 +195,85 @@ MESSAGES = {
     'NOW_PLAYING': ">>> NOW PLAYING: {player_name} <<<",
 }
 
-# Network Settings
-NETWORK_TIMEOUT = 10  # seconds
-RETRY_ATTEMPTS = 3
-RETRY_DELAY = 2  # seconds
-
-# Performance Settings
-PYGAME_BUFFER_SIZE = 512
-AUDIO_ENABLED = True
-VSYNC_ENABLED = True
+# Version Information
+VERSION = "2.1.0"
+VERSION_CODENAME = "ARM OPTIMIZED"
+BUILD_DATE = "2025-07-06"
+AUTHOR = "shmegl"
 
 # Development/Debug Settings
 DEBUG_MODE = False
 SHOW_FPS = False
 VERBOSE_LOGGING = False
-SIMULATE_SCORES = False  # Generate random scores for testing
+SIMULATE_SCORES = False
 
 # Backup Settings
 AUTO_BACKUP_SCORES = True
 BACKUP_INTERVAL_HOURS = 24
-BACKUP_RETENTION_DAYS = 30
+BACKUP_RETENTION_DAYS = 7  # Reduced for ARM storage
 BACKUP_LOCATION = f"{BASE_DIR}/backups"
 
-# Hardware-Specific Settings (Radxa Zero)
-GPU_MEMORY_SPLIT = 128  # MB for GPU
-CPU_GOVERNOR = "performance"  # performance, powersave, ondemand
-DISABLE_WIFI_POWER_SAVE = True
+# Helper functions
+def ensure_directories():
+    """Ensure all required directories exist"""
+    directories = [
+        BASE_DIR,
+        LOGS_DIR,
+        DOOM_DIR,
+        BACKUP_LOCATION
+    ]
+    
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
 
-# Additional DOOM Settings
-DOOM_SKILL_LEVEL = 3  # 1=ITYTD, 2=HNTR, 3=HMP, 4=UV, 5=NM
-DOOM_START_LEVEL = 1  # E1M1
-DOOM_EPISODE = 1
-DOOM_MUSIC_ENABLED = True
-DOOM_SOUND_ENABLED = True
-DOOM_MONSTERS_ENABLED = True
+def get_display_info():
+    """Get display information for debugging"""
+    import pygame
+    pygame.init()
+    return {
+        'driver': pygame.display.get_driver(),
+        'modes': pygame.display.list_modes(),
+        'current_mode': pygame.display.get_surface().get_size() if pygame.display.get_surface() else None
+    }
 
-# Custom DOOM Parameters (advanced users)
-CUSTOM_DOOM_ARGS = [
-    # Example custom arguments:
-    # "+sv_cheats", "0",
-    # "+dmflags", "0",
-    # "+skill", str(DOOM_SKILL_LEVEL)
-]
+def get_system_info():
+    """Get system information for debugging"""
+    import platform
+    import psutil
+    
+    return {
+        'platform': platform.platform(),
+        'architecture': platform.architecture(),
+        'processor': platform.processor(),
+        'memory': f"{psutil.virtual_memory().total // (1024**3)}GB",
+        'cpu_count': psutil.cpu_count(),
+        'cpu_freq': psutil.cpu_freq()._asdict() if psutil.cpu_freq() else None
+    }
 
-# Retro Theme Presets
-THEME_PRESETS = {
-    'CLASSIC_ARCADE': {
-        'PRIMARY': 'BRIGHT_RED',
-        'SECONDARY': 'BRIGHT_YELLOW',
-        'ACCENT': 'BRIGHT_GREEN',
-        'BACKGROUND': 'BLACK',
-        'TEXT': 'WHITE',
-    },
-    'CRT_GREEN': {
-        'PRIMARY': 'CRT_GREEN',
-        'SECONDARY': 'BRIGHT_GREEN',
-        'ACCENT': 'LIME',
-        'BACKGROUND': 'BLACK',
-        'TEXT': 'CRT_GREEN',
-    },
-    'AMBER_TERMINAL': {
-        'PRIMARY': 'CRT_AMBER',
-        'SECONDARY': 'AMBER',
-        'ACCENT': 'BRIGHT_YELLOW',
-        'BACKGROUND': 'BLACK',
-        'TEXT': 'CRT_AMBER',
-    },
-    'NEON_CYBERPUNK': {
-        'PRIMARY': 'BRIGHT_MAGENTA',
-        'SECONDARY': 'BRIGHT_CYAN',
-        'ACCENT': 'BRIGHT_BLUE',
-        'BACKGROUND': 'BLACK',
-        'TEXT': 'WHITE',
-    },
-}
+# Validation
+def validate_config():
+    """Validate configuration settings"""
+    errors = []
+    
+    # Check required files
+    if not os.path.exists(DOOM_WAD_PATH):
+        errors.append(f"DOOM.WAD not found at {DOOM_WAD_PATH}")
+    
+    if not os.path.exists(DOOM_EXECUTABLE):
+        errors.append(f"DOOM executable not found at {DOOM_EXECUTABLE}")
+    
+    # Check directories
+    try:
+        ensure_directories()
+    except Exception as e:
+        errors.append(f"Cannot create directories: {e}")
+    
+    # Check display settings
+    if DISPLAY_SIZE[0] < 800 or DISPLAY_SIZE[1] < 600:
+        errors.append("Display size too small")
+    
+    return errors
 
-# Active theme
-ACTIVE_THEME = 'CLASSIC_ARCADE'
-
-# Border Animation Colors
-BORDER_ANIMATION_COLORS = [
-    'BRIGHT_RED',
-    'BRIGHT_YELLOW', 
-    'BRIGHT_GREEN',
-    'BRIGHT_CYAN',
-    'BRIGHT_BLUE',
-    'BRIGHT_MAGENTA'
-]
-
-# QR Code Settings
-QR_CODE_SETTINGS = {
-    'VERSION': 3,  # Size of QR code (1-40, higher = larger)
-    'ERROR_CORRECTION': 'L',  # L, M, Q, H (L = lowest, H = highest)
-    'BOX_SIZE': 12,  # Size of each box in pixels
-    'BORDER': 8,     # Border size around QR code
-    'FILL_COLOR': 'WHITE',
-    'BACK_COLOR': 'BLACK',
-}
-
-# Screen Saver Settings
-SCREEN_SAVER_TIMEOUT = 0  # 0 = disabled
-ATTRACT_MODE = False  # Show demo gameplay when idle
-DEMO_TIMEOUT = 120  # seconds before starting demo
-
-# Accessibility Settings
-HIGH_CONTRAST_MODE = False
-LARGE_TEXT_MODE = False
-REDUCE_ANIMATIONS = False
-
-# Easter Eggs
-ENABLE_EASTER_EGGS = True
-KONAMI_CODE_TIMEOUT = 5.0  # seconds
-
-# Version Information
-VERSION = "2.0.0"
-VERSION_CODENAME = "RETRO EDITION"
-BUILD_DATE = "2025-07-06"
-AUTHOR = "shmegl"
+# Auto-run validation if imported
+if __name__ != "__main__":
+    ensure_directories()
