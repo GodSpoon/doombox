@@ -204,21 +204,21 @@ class DoomBoxKiosk:
             
             # Load Doom 2016 fonts for header
             if (os.path.exists(doom_left_path) and os.path.exists(doom_right_path) and os.path.exists(doom_text_path)):
-                self.font_doom_left = pygame.font.Font(doom_left_path, 72)
-                self.font_doom_right = pygame.font.Font(doom_right_path, 72)
-                self.font_doom_text = pygame.font.Font(doom_text_path, 72)
+                self.font_doom_left = pygame.font.Font(doom_left_path, 78)
+                self.font_doom_right = pygame.font.Font(doom_right_path, 78)
+                self.font_doom_text = pygame.font.Font(doom_text_path, 78)
                 logger.info("Using Doom 2016 fonts for header")
             else:
                 # Fallback to Puffin Liquid for header
                 if os.path.exists(puffin_liquid_path):
-                    self.font_doom_left = pygame.font.Font(puffin_liquid_path, 72)
-                    self.font_doom_right = pygame.font.Font(puffin_liquid_path, 72)
-                    self.font_doom_text = pygame.font.Font(puffin_liquid_path, 72)
+                    self.font_doom_left = pygame.font.Font(puffin_liquid_path, 78)
+                    self.font_doom_right = pygame.font.Font(puffin_liquid_path, 78)
+                    self.font_doom_text = pygame.font.Font(puffin_liquid_path, 78)
                     logger.warning("Doom 2016 fonts not found, using Puffin Liquid for header")
                 else:
-                    self.font_doom_left = pygame.font.SysFont('arial', 72, bold=True)
-                    self.font_doom_right = pygame.font.SysFont('arial', 72, bold=True)
-                    self.font_doom_text = pygame.font.SysFont('arial', 72, bold=True)
+                    self.font_doom_left = pygame.font.SysFont('arial', 78, bold=True)
+                    self.font_doom_right = pygame.font.SysFont('arial', 78, bold=True)
+                    self.font_doom_text = pygame.font.SysFont('arial', 78, bold=True)
                     logger.warning("Doom 2016 and Puffin fonts not found, using system font for header")
             
             # Check if Puffin Liquid exists and use it for titles
@@ -251,9 +251,9 @@ class DoomBoxKiosk:
         except Exception as e:
             logger.error(f"Font setup error: {e}")
             # Ultimate fallback
-            self.font_doom_left = pygame.font.Font(None, 72)
-            self.font_doom_right = pygame.font.Font(None, 72)
-            self.font_doom_text = pygame.font.Font(None, 72)
+            self.font_doom_left = pygame.font.Font(None, 78)
+            self.font_doom_right = pygame.font.Font(None, 78)
+            self.font_doom_text = pygame.font.Font(None, 78)
             self.font_title = pygame.font.Font(None, 72)
             self.font_subtitle = pygame.font.Font(None, 48)
             self.font_large = pygame.font.Font(None, 36)
@@ -701,8 +701,23 @@ class DoomBoxKiosk:
         title_text = "TOP SCORES"
         title_width = self.font_large.size(title_text)[0]
         
-        # Center the title text, then position trophy icons to the right
+        # Center the title text
         title_x = scores_section_x + scores_section_width//2 - title_width//2
+        
+        # Draw trophy icons on either side of the text
+        if self.trophy_icon:
+            trophy_y = scores_title_y + 5  # Slightly lower to align with text
+            trophy_spacing = 15  # Space between text and trophies
+            
+            # Tint the trophy icons gold
+            trophy_tinted = self.trophy_icon.copy()
+            trophy_tinted.fill(self.ui.COLORS['GOLD_PURPLE'], special_flags=pygame.BLEND_MULT)
+            
+            # Left trophy (before text)
+            self.screen.blit(trophy_tinted, (title_x - trophy_spacing - 32, trophy_y))
+            
+            # Right trophy (after text)
+            self.screen.blit(trophy_tinted, (title_x + title_width + trophy_spacing, trophy_y))
         
         # Draw title text (centered)
         self.ui.draw_text_with_shadow(
@@ -712,21 +727,6 @@ class DoomBoxKiosk:
             (title_x, scores_title_y),
             self.ui.COLORS['OFF_BLACK']
         )
-        
-        # Draw trophy icons to the right of the centered text
-        if self.trophy_icon:
-            trophy_y = scores_title_y + 5  # Slightly lower to align with text
-            trophy_spacing = 15  # Space between text and first trophy
-            
-            # Tint the trophy icons gold
-            trophy_tinted = self.trophy_icon.copy()
-            trophy_tinted.fill(self.ui.COLORS['GOLD_PURPLE'], special_flags=pygame.BLEND_MULT)
-            
-            # First trophy to the right of text
-            self.screen.blit(trophy_tinted, (title_x + title_width + trophy_spacing, trophy_y))
-            
-            # Second trophy further to the right
-            self.screen.blit(trophy_tinted, (title_x + title_width + trophy_spacing + 40, trophy_y))
 
         # Score entries
         scores = self.get_top_scores(8)  # Show top 8 for clean layout
