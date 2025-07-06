@@ -303,13 +303,14 @@ class DoomBoxKiosk:
             logger.error(f"Database setup error: {e}")
 
     def load_background_video(self):
-        """Load and setup background video cycling through all available videos"""
+        """Load and setup background video cycling through all available videos in random order"""
         try:
             self.video_files = []
             if os.path.exists(self.videos_dir):
-                # Get all video files and sort them
+                # Get all video files and shuffle them for random order
                 all_files = [f for f in os.listdir(self.videos_dir) if f.endswith(('.mp4', '.avi', '.mov'))]
-                self.video_files = sorted(all_files)
+                self.video_files = sorted(all_files)  # Sort first for consistent behavior
+                random.shuffle(self.video_files)  # Then shuffle for random order
             
             if self.video_files:
                 self.current_video_index = 0
@@ -321,7 +322,7 @@ class DoomBoxKiosk:
                 
                 # Load first video
                 self.load_next_video()
-                logger.info(f"Loaded {len(self.video_files)} background videos")
+                logger.info(f"Loaded {len(self.video_files)} background videos in random order")
             else:
                 self.video_cap = None
                 self.video_files = []
@@ -332,7 +333,7 @@ class DoomBoxKiosk:
             self.video_files = []
 
     def load_next_video(self):
-        """Load the next video in the sequence"""
+        """Load the next video in the random sequence"""
         try:
             if not self.video_files:
                 return
@@ -347,8 +348,13 @@ class DoomBoxKiosk:
             
             logger.info(f"Loaded video: {self.video_files[self.current_video_index]}")
             
-            # Move to next video for next time
+            # Move to next video in the shuffled list
             self.current_video_index = (self.current_video_index + 1) % len(self.video_files)
+            
+            # If we've cycled through all videos, shuffle the list again for a new random order
+            if self.current_video_index == 0:
+                random.shuffle(self.video_files)
+                logger.info("Reshuffled video playlist for new random order")
             
         except Exception as e:
             logger.error(f"Error loading video: {e}")
