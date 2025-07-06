@@ -238,6 +238,31 @@ fi
 [ -f "$SCRIPT_DIR/config.py" ] && cp "$SCRIPT_DIR/config.py" ./
 [ -f "$SCRIPT_DIR/webhook.py" ] && cp "$SCRIPT_DIR/webhook.py" ./
 
+# Copy controller scripts from repository
+echo -e "${YELLOW}Setting up controller scripts...${NC}"
+
+# List of controller scripts to copy
+CONTROLLER_SCRIPTS=(
+    "pair_controller.sh"
+    "debug_controller.sh"  
+    "auto_connect_controller.sh"
+    "setup_controller.sh"
+    "CONTROLLER_README.md"
+)
+
+# Copy controller scripts if they exist in the repo
+for script in "${CONTROLLER_SCRIPTS[@]}"; do
+    if [ -f "$SCRIPT_DIR/$script" ]; then
+        echo "Copying $script..."
+        cp "$SCRIPT_DIR/$script" "$DOOMBOX_DIR/"
+        chmod +x "$DOOMBOX_DIR/$script" 2>/dev/null || true
+    else
+        echo "⚠️  $script not found in repository"
+    fi
+done
+
+echo -e "${GREEN}✓ Controller scripts copied${NC}"
+
 # Copy web form files if they exist
 if [ -d "$SCRIPT_DIR/form" ]; then
     cp -r "$SCRIPT_DIR/form" ./
@@ -472,15 +497,21 @@ echo -e ""
 echo -e "3. ${YELLOW}Start with X server:${NC}"
 echo -e "   cd $DOOMBOX_DIR && ./start_with_x.sh"
 echo -e ""
-echo -e "4. ${YELLOW}Test controller:${NC}"
-echo -e "   cd $DOOMBOX_DIR && ./debug_controller.sh"
+echo -e "4. ${YELLOW}Setup controller:${NC}"
+echo -e "   cd $DOOMBOX_DIR && ./setup_controller.sh"
+echo -e ""
+echo -e "5. ${YELLOW}Pair DualShock 4 controller:${NC}"
+echo -e "   cd $DOOMBOX_DIR && ./pair_controller.sh"
 echo -e ""
 echo -e "Available scripts in $DOOMBOX_DIR:"
 echo -e "• start.sh - Main kiosk launcher"
 echo -e "• start_with_x.sh - Start with X server"
 echo -e "• test_kiosk.sh - Test kiosk application"
 echo -e "• test_doom.sh - Test DOOM engine"
+echo -e "• setup_controller.sh - Controller setup helper"
+echo -e "• pair_controller.sh - Pair DualShock 4 controller"
 echo -e "• debug_controller.sh - Controller debugging"
+echo -e "• auto_connect_controller.sh - Auto-connect controller"
 echo -e "• view_scores.sh - View high scores"
 echo -e "• fix_numpy.sh - Fix NumPy compatibility issues"
 echo -e ""
