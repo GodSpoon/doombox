@@ -448,10 +448,10 @@ class DoomBoxKiosk:
         # Main title
         title_y = 25
         self.ui.draw_text_with_shadow(
-            "shmegl's DoomBox",
+            "Shmegl's Slayers",
             self.font_title,
             self.ui.COLORS['LIGHT_PURPLE'],
-            (self.DISPLAY_SIZE[0]//2 - self.font_title.size("shmegl's DoomBox")[0]//2, title_y),
+            (self.DISPLAY_SIZE[0]//2 - self.font_title.size("Shmegl's Slayers")[0]//2, title_y),
             self.ui.COLORS['OFF_BLACK'],
             (3, 3)
         )
@@ -459,10 +459,10 @@ class DoomBoxKiosk:
         # Subtitle
         subtitle_y = title_y + 80
         self.ui.draw_text_with_shadow(
-            "Highest score gets a free tattoo!",
+            "Get the high score on Doom & get a free tattoo from Petra",
             self.font_subtitle,
             self.ui.COLORS['WARNING_PURPLE'],
-            (self.DISPLAY_SIZE[0]//2 - self.font_subtitle.size("Highest score gets a free tattoo!")[0]//2, subtitle_y),
+            (self.DISPLAY_SIZE[0]//2 - self.font_subtitle.size("Get the high score on Doom & get a free tattoo from Petra")[0]//2, subtitle_y),
             self.ui.COLORS['OFF_BLACK'],
             (2, 2)
         )
@@ -487,21 +487,21 @@ class DoomBoxKiosk:
         # QR code overlay for better visibility
         qr_overlay = pygame.Surface((qr_section_rect[2], qr_section_rect[3]))
         qr_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        qr_overlay.set_alpha(180)  # Lighter for video visibility
+        qr_overlay.set_alpha(160)  # Match header opacity
         self.screen.blit(qr_overlay, (qr_section_rect[0], qr_section_rect[1]))
 
         # QR section title
         qr_title_y = content_y + self.ui.LAYOUT['PADDING']
         self.ui.draw_text_with_shadow(
-            "SCAN TO PLAY",
-            self.font_large,
+            "Scan the QR code to enter your name and play",
+            self.font_medium,
             self.ui.COLORS['PURPLE_BLUE'],
-            (qr_section_x + qr_section_width//2 - self.font_large.size("SCAN TO PLAY")[0]//2, qr_title_y),
+            (qr_section_x + qr_section_width//2 - self.font_medium.size("Scan the QR code to enter your name and play")[0]//2, qr_title_y),
             self.ui.COLORS['OFF_BLACK']
         )
 
         # QR Code - Properly centered in the section
-        qr_y = qr_title_y + 70
+        qr_y = qr_title_y + 50
         qr_x = qr_section_x + (qr_section_width - self.ui.LAYOUT['QR_SIZE']) // 2
         
         # QR background with purple tint
@@ -532,6 +532,23 @@ class DoomBoxKiosk:
                 self.ui.COLORS['OFF_BLACK']
             )
 
+        # Instagram requirement text
+        instagram_y = url_y + 60
+        instagram_lines = [
+            "Contestants must follow petra on",
+            "Instagram @shmegl & share their",
+            "last post to be able to win"
+        ]
+        for i, line in enumerate(instagram_lines):
+            line_y = instagram_y + i * 20
+            self.ui.draw_text_with_shadow(
+                line,
+                self.font_tiny,
+                self.ui.COLORS['MEDIUM_GRAY'],
+                (qr_section_x + qr_section_width//2 - self.font_tiny.size(line)[0]//2, line_y),
+                self.ui.COLORS['OFF_BLACK']
+            )
+
         # Right side - Leaderboard section
         scores_section_x = qr_section_x + qr_section_width + self.ui.LAYOUT['MARGIN']
         scores_section_width = self.DISPLAY_SIZE[0] - scores_section_x - self.ui.LAYOUT['MARGIN']
@@ -548,7 +565,7 @@ class DoomBoxKiosk:
         # Scores overlay
         scores_overlay = pygame.Surface((scores_section_rect[2], scores_section_rect[3]))
         scores_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        scores_overlay.set_alpha(180)  # Lighter for video visibility
+        scores_overlay.set_alpha(160)  # Match header opacity
         self.screen.blit(scores_overlay, (scores_section_rect[0], scores_section_rect[1]))
 
         # Leaderboard title
