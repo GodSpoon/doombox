@@ -476,19 +476,20 @@ class DoomBoxKiosk:
         qr_section_x = self.ui.LAYOUT['MARGIN']
         qr_section_rect = (qr_section_x, content_y, qr_section_width, content_height)
         
+        # QR code rounded background box with 50% opacity
+        qr_bg_surface = pygame.Surface((qr_section_rect[2], qr_section_rect[3]), pygame.SRCALPHA)
+        qr_bg_color = (*self.ui.COLORS['OVERLAY_DARK'], 128)  # 50% opacity (128/255)
+        pygame.draw.rect(qr_bg_surface, qr_bg_color, (0, 0, qr_section_rect[2], qr_section_rect[3]), border_radius=self.ui.LAYOUT['BORDER_RADIUS'])
+        self.screen.blit(qr_bg_surface, (qr_section_rect[0], qr_section_rect[1]))
+        
+        # Optional border
         self.ui.draw_rounded_rect(
             qr_section_rect,
             self.ui.LAYOUT['BORDER_RADIUS'],
-            self.ui.COLORS['OVERLAY_DARK'],
+            None,
             self.ui.COLORS['BORDER_LIGHT'],
             2
         )
-        
-        # QR code overlay for better visibility
-        qr_overlay = pygame.Surface((qr_section_rect[2], qr_section_rect[3]))
-        qr_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        qr_overlay.set_alpha(160)  # Match header opacity
-        self.screen.blit(qr_overlay, (qr_section_rect[0], qr_section_rect[1]))
 
         # QR section title - split into two lines
         qr_title_y = content_y + self.ui.LAYOUT['PADDING']
@@ -560,19 +561,20 @@ class DoomBoxKiosk:
         scores_section_width = self.DISPLAY_SIZE[0] - scores_section_x - self.ui.LAYOUT['MARGIN']
         scores_section_rect = (scores_section_x, content_y, scores_section_width, content_height)
         
+        # Scores rounded background box with 50% opacity
+        scores_bg_surface = pygame.Surface((scores_section_rect[2], scores_section_rect[3]), pygame.SRCALPHA)
+        scores_bg_color = (*self.ui.COLORS['OVERLAY_DARK'], 128)  # 50% opacity (128/255)
+        pygame.draw.rect(scores_bg_surface, scores_bg_color, (0, 0, scores_section_rect[2], scores_section_rect[3]), border_radius=self.ui.LAYOUT['BORDER_RADIUS'])
+        self.screen.blit(scores_bg_surface, (scores_section_rect[0], scores_section_rect[1]))
+        
+        # Optional border
         self.ui.draw_rounded_rect(
             scores_section_rect,
             self.ui.LAYOUT['BORDER_RADIUS'],
-            self.ui.COLORS['OVERLAY_DARK'],
+            None,
             self.ui.COLORS['BORDER_LIGHT'],
             2
         )
-        
-        # Scores overlay
-        scores_overlay = pygame.Surface((scores_section_rect[2], scores_section_rect[3]))
-        scores_overlay.fill(self.ui.COLORS['OVERLAY_DARK'])
-        scores_overlay.set_alpha(160)  # Match header opacity
-        self.screen.blit(scores_overlay, (scores_section_rect[0], scores_section_rect[1]))
 
         # Leaderboard title
         scores_title_y = content_y + self.ui.LAYOUT['PADDING']
