@@ -118,8 +118,8 @@ DOOM_EXTRA_ARGS = [
     "-nosound"   # Disable sound for better performance (comment out if you want audio)
 ]
 
-# File Paths
-BASE_DIR = "/opt/doombox"
+# File Paths - Use current directory for development
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # DoomBox root directory
 LOGS_DIR = f"{BASE_DIR}/logs"
 TRIGGER_FILE = f"{BASE_DIR}/new_player.json"
 SCORE_DATABASE = f"{BASE_DIR}/scores.db"

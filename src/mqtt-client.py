@@ -26,12 +26,20 @@ class DoomBoxMQTTClient:
     def __init__(self, broker_host: str = None, broker_port: int = None):
         # Try to import configuration
         try:
+            # Add parent directory to path for config import
+            import sys
+            import os
+            parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if parent_dir not in sys.path:
+                sys.path.insert(0, parent_dir)
+            
             from config.config import MQTT_BROKER, MQTT_PORT, MQTT_TOPICS
             self.broker_host = broker_host or MQTT_BROKER
             self.broker_port = broker_port or MQTT_PORT
             self.topics = MQTT_TOPICS
-        except ImportError:
+        except ImportError as e:
             # Fallback configuration
+            logger.warning(f"Could not import config: {e}, using fallback localhost")
             self.broker_host = broker_host or "localhost"
             self.broker_port = broker_port or 1883
             self.topics = {

@@ -3,3 +3,38 @@
 2025-07-06 12:43:52,708 - INFO - Database initialized successfully
 2025-07-06 12:43:52,708 - INFO - GameLauncher initialized
 2025-07-06 12:43:52,708 - ERROR - dsda-doom not found at /usr/games/dsda-doom
+2025-07-06 20:26:36,176 - ERROR - dsda-doom not found in any common locations
+2025-07-06 20:26:36,177 - INFO - Database initialized successfully
+2025-07-06 20:26:36,177 - INFO - GameLauncher initialized
+2025-07-06 20:26:36,177 - INFO - Game state changed: idle -> starting
+2025-07-06 20:26:36,177 - INFO - Game state changed: starting -> running
+2025-07-06 20:26:36,177 - INFO - Game state changed: running -> finished
+2025-07-06 20:26:36,177 - INFO - Game state changed: finished -> idle
+2025-07-06 20:26:36,178 - ERROR - dsda-doom not found in any common locations
+2025-07-06 20:26:36,178 - INFO - Database initialized successfully
+2025-07-06 20:26:36,179 - INFO - GameLauncher initialized
+2025-07-06 20:26:36,179 - ERROR - dsda-doom not found at /usr/games/dsda-doom
+2025-07-06 20:26:36,179 - ERROR - Error setting up Doom config: [Errno 13] Permission denied: '/root/.dsda-doom'
+2025-07-06 20:26:36,179 - ERROR - dsda-doom not found in any common locations
+2025-07-06 20:26:36,180 - INFO - Database initialized successfully
+2025-07-06 20:26:36,180 - INFO - GameLauncher initialized
+2025-07-06 20:26:50,144 - ERROR - dsda-doom not found in any common locations
+2025-07-06 20:26:50,144 - INFO - Database initialized successfully
+2025-07-06 20:26:50,144 - INFO - GameLauncher initialized
+2025-07-06 20:26:50,144 - INFO - Game state changed: idle -> starting
+2025-07-06 20:26:50,145 - INFO - Game state changed: starting -> running
+2025-07-06 20:26:50,145 - INFO - Game state changed: running -> finished
+2025-07-06 20:26:50,145 - INFO - Game state changed: finished -> idle
+2025-07-06 20:26:50,146 - ERROR - dsda-doom not found in any common locations
+2025-07-06 20:26:50,146 - INFO - Database initialized successfully
+2025-07-06 20:26:50,146 - INFO - GameLauncher initialized
+2025-07-06 20:26:50,146 - ERROR - dsda-doom not found at /usr/games/dsda-doom
+2025-07-06 20:26:50,147 - INFO - dsda-doom configuration created with fullscreen enforcement
+2025-07-06 20:26:50,148 - ERROR - dsda-doom not found in any common locations
+2025-07-06 20:26:50,148 - INFO - Database initialized successfully
+2025-07-06 20:26:50,148 - INFO - GameLauncher initialized
+2025-07-07 19:11:26,851 - WARNING - No Doom executable found in any common locations
+2025-07-07 19:11:26,851 - WARNING - No DOOM WAD file found in any common locations
+2025-07-07 19:11:26,852 - INFO - Database initialized successfully
+2025-07-07 19:11:26,852 - INFO - GameLauncher initialized
+2025-07-07 19:11:26,853 - ERROR - dsda-doom not found in PATH. Please install dsda-doom package.

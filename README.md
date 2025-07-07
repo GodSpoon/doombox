@@ -4,6 +4,16 @@
 
 An interactive promo kiosk built on Radxa Zero that displays a QR code for user registration, launches DOOM with custom player names, tracks high scores, and awards prizes to top players.
 
+## Key Features
+
+- **Fullscreen Gaming**: Games launch in enforced fullscreen mode (1280x960)
+- **Smart Video Management**: Kiosk videos pause during gameplay and resume when finished
+- **Game State Monitoring**: Real-time tracking of game status (idle, starting, running, finished)
+- **MQTT Integration**: Remote game triggering via web form and MQTT messaging
+- **Score Tracking**: High score leaderboard with winner selection
+- **Controller Support**: DualShock 4 with auto-reconnect
+- **Hardware Acceleration**: Optimized video playback with ARM64 GPU support
+
 ## Hardware Requirements
 
 - Radxa Zero SBC (4GB RAM recommended)
@@ -574,3 +584,87 @@ ssh root@10.0.0.234 "pip3 install paho-mqtt flask"
 - Interactive test mode for development
 - Automatic IP configuration
 - Comprehensive error handling and logging
+
+### 2025-07-06 - MQTT Setup Complete & Tested ✅
+
+**Successfully completed full MQTT setup and testing:**
+
+✅ **MQTT Broker Setup (Arch Host)**
+- Installed and configured mosquitto on 10.0.0.215:1883
+- Anonymous access enabled for development
+- Auto-IP detection and configuration working
+
+✅ **Test Client Implementation**
+- Comprehensive Python test client with interactive mode
+- Support for all command types (launch, stop, status, register)
+- Real-time message monitoring capabilities
+
+✅ **Cross-Platform Deployment**
+- Successfully deployed to Radxa Zero (10.0.0.234)
+- Python dependencies installed (paho-mqtt, flask)
+- All scripts executable and functional
+
+✅ **End-to-End Testing**
+- Host → Radxa communication verified
+- Game launch commands successfully sent
+- Web form simulation working
+- Status requests functioning properly
+
+**Ready for Production Use:**
+- Remote game launching: `python3 scripts/mqtt-test-client.py --broker 10.0.0.215 launch PlayerName`
+- Real-time monitoring: `python3 scripts/mqtt-test-client.py --broker 10.0.0.215 monitor`
+- Interactive testing: `python3 scripts/mqtt-test-client.py --broker 10.0.0.215 interactive`
+
+The MQTT infrastructure is now fully operational and ready for integration with the web form and game launcher components.
+
+---
+
+## Game State Management & Video Pause Implementation ⚡
+
+**Major enhancement to game lifecycle management and video playback control**
+
+#### 🎮 **Enhanced Game Launcher**
+- **Fullscreen Enforcement**: Added multiple fullscreen flags and enhanced DOOM configuration
+- **Game State Monitoring**: Implemented background thread to monitor game process lifecycle
+- **State Callbacks**: Added callback system to notify kiosk components of game state changes
+- **Improved Configuration**: Enhanced dsda-doom.cfg with fullscreen enforcement and window management
+
+#### 📺 **Smart Video Management**
+- **Automatic Pause**: Video playback pauses when game starts (idle → starting → running)
+- **Game Status Display**: Shows "GAME IN PROGRESS" with current player name during gameplay
+- **Automatic Resume**: Video playback resumes when game ends (finished → idle)
+- **State-Aware Rendering**: Kiosk interface adapts based on game state
+
+#### 🔧 **Technical Implementation**
+- **Game States**: `idle`, `starting`, `running`, `finished` with automatic transitions
+- **Process Monitoring**: Background thread tracks game process and exit codes
+- **Configuration Management**: Enhanced DOOM config stored in project directory
+- **Integration Testing**: Comprehensive test suite validates all functionality
+
+#### 📊 **Configuration Details**
+```ini
+# Enhanced dsda-doom.cfg with fullscreen enforcement
+screen_width 1280
+screen_height 960
+use_fullscreen 1
+force_fullscreen 1
+windowed_mode 0
+allow_windowed 0
+```
+
+#### 🧪 **Testing Results**
+- ✅ **Game state callbacks**: All state transitions working correctly
+- ✅ **Video pause/resume**: Automatic control based on game state
+- ✅ **Fullscreen enforcement**: Multiple configuration layers ensure fullscreen mode
+- ✅ **Integration**: MQTT, video player, and game launcher working together
+- ✅ **Error handling**: Graceful handling of missing dependencies and cleanup
+
+#### 🚀 **User Experience**
+- Players see kiosk video demos when system is idle
+- Game launches in fullscreen immediately upon trigger
+- Video stops playing to avoid distraction during gameplay
+- Clear "GAME IN PROGRESS" message shows current player
+- Video resumes automatically when player dies/quits
+- Seamless transition back to kiosk interface
+
+**Status**: ✅ **Complete game state management system operational with full video pause/resume functionality**

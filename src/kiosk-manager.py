@@ -23,7 +23,10 @@ from datetime import datetime
 from pathlib import Path
 import cv2
 import numpy as np
+import importlib.util
 from fallback_video_player import create_video_player
+
+# Enhanced imports for MQTT and game integration will be loaded after logger setup
 
 # Set up logging
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +42,48 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Enhanced imports for MQTT and game integration
+try:
+    # Add current directory to path for local imports
+    import sys
+    sys.path.insert(0, os.path.dirname(__file__))
+    
+    # Import with proper module names (handling hyphens)
+    import importlib.util
+    import paho.mqtt.client as mqtt
+    
+    # Import mqtt-client
+    mqtt_spec = importlib.util.spec_from_file_location("mqtt_client", 
+                                                      os.path.join(os.path.dirname(__file__), "mqtt-client.py"))
+    mqtt_module = importlib.util.module_from_spec(mqtt_spec)
+    mqtt_spec.loader.exec_module(mqtt_module)
+    DoomBoxMQTTClient = mqtt_module.DoomBoxMQTTClient
+    
+    # Import game-launcher
+    game_spec = importlib.util.spec_from_file_location("game_launcher", 
+                                                      os.path.join(os.path.dirname(__file__), "game-launcher.py"))
+    game_module = importlib.util.module_from_spec(game_spec)
+    game_spec.loader.exec_module(game_module)
+    GameLauncher = game_module.GameLauncher
+    
+    logger.info("Successfully imported DoomBox components")
+    MQTT_INTEGRATION_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"Failed to import DoomBox components: {e}")
+    # Set dummy classes to prevent crashes
+    class DoomBoxMQTTClient:
+        def __init__(self, *args, **kwargs): pass
+        def connect(self): return False
+        def disconnect(self): pass
+        def set_game_launcher(self, launcher): pass
+    
+    class GameLauncher:
+        def __init__(self, *args, **kwargs): pass
+        def launch_game(self, *args, **kwargs): return False
+        def stop_game(self): pass
+    
+    MQTT_INTEGRATION_AVAILABLE = False
 
 class CleanUIRenderer:
     """Handles clean, appealing visual design optimized for 4:3 displays"""
@@ -163,6 +208,8 @@ class DoomBoxKiosk:
         self.running = True
         self.clock = pygame.time.Clock()
         self.form_url = "http://shmeglsdoombox.spoon.rip"
+        self.video_paused = False  # Track video playback state
+        self.kiosk_hidden = False  # Track if kiosk is hidden for game
         
         # Setup directories first
         self.setup_directories()
@@ -177,6 +224,9 @@ class DoomBoxKiosk:
         self.setup_qr_code()
         self.setup_database()
         self.setup_hardware_video_player()
+        
+        # Initialize game launcher and MQTT client
+        self.setup_game_integration()
         
         logger.info("DoomBox Kiosk initialized successfully!")
 
@@ -421,6 +471,121 @@ class DoomBoxKiosk:
             self.trophy_icon = None
             self.crown_icon = None
 
+    def setup_game_integration(self):
+        """Initialize game launcher and MQTT integration"""
+        try:
+            logger.info("Setting up game integration...")
+            
+            if not MQTT_INTEGRATION_AVAILABLE:
+                logger.warning("MQTT integration not available, skipping...")
+                self.game_launcher = None
+                self.mqtt_client = None
+                return
+            
+            # Initialize game launcher
+            self.game_launcher = GameLauncher()
+            
+            # Add game state callback to handle video playback
+            self.game_launcher.add_game_state_callback(self._on_game_state_change)
+            
+            logger.info("Game launcher initialized")
+            
+            # Initialize MQTT client
+            self.mqtt_client = DoomBoxMQTTClient()
+            
+            # Connect game launcher to MQTT client
+            self.mqtt_client.set_game_launcher(self.game_launcher)
+            
+            # Connect to MQTT broker in a separate thread
+            def connect_mqtt():
+                try:
+                    if self.mqtt_client.connect():
+                        logger.info("✅ MQTT client connected successfully")
+                        # Publish initial status
+                        try:
+                            self.mqtt_client._publish_system_status()
+                        except:
+                            # Fallback if direct method doesn't work
+                            pass
+                    else:
+                        logger.warning("❌ Failed to connect to MQTT broker")
+                except Exception as e:
+                    logger.error(f"MQTT connection error: {e}")
+            
+            # Start MQTT connection in background
+            import threading
+            mqtt_thread = threading.Thread(target=connect_mqtt, daemon=True)
+            mqtt_thread.start()
+            
+            logger.info("Game integration setup complete")
+            
+        except Exception as e:
+            logger.error(f"Game integration setup error: {e}")
+            # Set dummy objects to prevent crashes
+            self.game_launcher = None
+            self.mqtt_client = None
+    
+    def _on_game_state_change(self, old_state, new_state, player_name):
+        """Handle game state changes - properly close kiosk when game starts"""
+        logger.info(f"Game state changed: {old_state} -> {new_state} (player: {player_name})")
+        
+        if new_state in ["starting", "running"]:
+            # Game is starting or running - completely hide kiosk and stop all resources
+            logger.info("Game starting - hiding kiosk completely and stopping all resources")
+            
+            # Stop video player entirely to free up resources
+            if self.video_player:
+                self.video_player.stop()
+                self.video_player = None  # Completely remove reference
+                logger.info("Video player stopped and destroyed")
+            
+            # Hide kiosk window completely - quit pygame display to free GPU resources
+            try:
+                pygame.display.quit()
+                logger.info("Kiosk display completely closed to free GPU resources")
+            except Exception as e:
+                logger.warning(f"Could not close kiosk display: {e}")
+            
+            # Set video as stopped and mark kiosk as hidden
+            self.video_paused = True
+            self.kiosk_hidden = True
+            
+        elif new_state in ["idle", "finished"]:
+            # Game is finished or idle - restore kiosk and restart video
+            logger.info("Game finished - fully restoring kiosk and restarting all components")
+            
+            # Wait a moment for game to fully exit and release resources
+            time.sleep(2)
+            
+            # Restore kiosk display
+            try:
+                # Reinitialize pygame display
+                pygame.display.init()
+                self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
+                pygame.display.set_caption("shmegl's DoomBox")
+                pygame.mouse.set_visible(False)
+                logger.info("Kiosk display fully restored")
+            except Exception as e:
+                logger.error(f"Could not restore kiosk display: {e}")
+                # Try again after a longer delay
+                time.sleep(3)
+                try:
+                    pygame.display.init()
+                    self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
+                    pygame.display.set_caption("shmegl's DoomBox")
+                    pygame.mouse.set_visible(False)
+                    logger.info("Kiosk display restored on retry")
+                except Exception as e2:
+                    logger.error(f"Failed to restore kiosk display on retry: {e2}")
+            
+            # Restart video player
+            self.setup_hardware_video_player()
+            
+            # Resume video playback and show kiosk
+            self.video_paused = False
+            self.kiosk_hidden = False
+            logger.info("Video playback and kiosk fully resumed")
+
     def draw_doom_header(self, title_text, x, y):
         """Draw header with Doom 2016 fonts and skull icons"""
         # Split title into first, middle, and last characters
@@ -491,8 +656,8 @@ class DoomBoxKiosk:
     def draw_main_screen(self):
         """Draw the main kiosk screen with purple color scheme and visible video background"""
         
-        # Background - Hardware-accelerated video
-        if self.video_player:
+        # Background - Hardware-accelerated video (only if not paused)
+        if self.video_player and not self.video_paused:
             video_frame = self.video_player.get_frame()
             if video_frame:
                 # Apply subtle purple tint to video instead of heavy darkening
@@ -511,12 +676,35 @@ class DoomBoxKiosk:
                     self.ui.COLORS['DARK_PURPLE']
                 )
         else:
-            # Gradient background with purple theme
+            # Show static background when video is paused or unavailable
             self.ui.draw_gradient_background(
                 (0, 0, self.DISPLAY_SIZE[0], self.DISPLAY_SIZE[1]),
                 self.ui.COLORS['OFF_BLACK'],
                 self.ui.COLORS['DARK_PURPLE']
             )
+            
+            # If video is paused due to game, show a message
+            if self.video_paused:
+                game_status_text = "GAME IN PROGRESS"
+                game_status_surface = self.font_large.render(game_status_text, True, self.ui.COLORS['GOLD_PURPLE'])
+                status_rect = game_status_surface.get_rect(center=(self.DISPLAY_SIZE[0]//2, self.DISPLAY_SIZE[1]//2))
+                
+                # Add background for better visibility
+                bg_rect = pygame.Rect(status_rect.x - 20, status_rect.y - 10, status_rect.width + 40, status_rect.height + 20)
+                bg_surface = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(bg_surface, (*self.ui.COLORS['OFF_BLACK'], 180), (0, 0, bg_rect.width, bg_rect.height), border_radius=12)
+                self.screen.blit(bg_surface, (bg_rect.x, bg_rect.y))
+                
+                self.screen.blit(game_status_surface, status_rect)
+                
+                # Show current player if available
+                if hasattr(self, 'game_launcher') and self.game_launcher and self.game_launcher.current_player:
+                    player_text = f"Player: {self.game_launcher.current_player}"
+                    player_surface = self.font_medium.render(player_text, True, self.ui.COLORS['LIGHT_PURPLE'])
+                    player_rect = player_surface.get_rect(center=(self.DISPLAY_SIZE[0]//2, self.DISPLAY_SIZE[1]//2 + 60))
+                    self.screen.blit(player_surface, player_rect)
+                
+                return  # Don't draw the normal kiosk interface when game is running
 
         # === HEADER SECTION ===
         # Remove header background div - let header text appear directly on video
@@ -766,7 +954,13 @@ class DoomBoxKiosk:
 
         try:
             while self.running:
-                # Handle events
+                # Skip main loop if kiosk is hidden for game
+                if hasattr(self, 'kiosk_hidden') and self.kiosk_hidden:
+                    # Kiosk is hidden while game is running - just sleep to avoid busy loop
+                    time.sleep(1)
+                    continue
+                
+                # Handle events only if kiosk is visible
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         self.running = False
@@ -775,12 +969,19 @@ class DoomBoxKiosk:
                             self.running = False
                         elif event.key == pygame.K_F11:
                             pygame.display.toggle_fullscreen()
+                        elif event.key == pygame.K_g:  # Test key to launch game
+                            if hasattr(self, 'game_launcher') and self.game_launcher:
+                                if not self.game_launcher.is_game_running():
+                                    logger.info("Test game launch triggered")
+                                    self.game_launcher.launch_game("TestPlayer")
 
-                # Draw main screen
-                self.draw_main_screen()
+                # Draw main screen only if kiosk is visible
+                if hasattr(self, 'screen') and self.screen:
+                    self.draw_main_screen()
+                    
+                    # Update display
+                    pygame.display.flip()
                 
-                # Update display
-                pygame.display.flip()
                 self.clock.tick(30)  # 30 FPS for smooth performance on ARM
 
         except KeyboardInterrupt:
@@ -793,6 +994,17 @@ class DoomBoxKiosk:
     def cleanup(self):
         """Clean shutdown"""
         logger.info("Cleaning up DoomBox kiosk...")
+        
+        # Clean up MQTT client
+        if hasattr(self, 'mqtt_client') and self.mqtt_client:
+            self.mqtt_client.disconnect()
+            logger.info("MQTT client disconnected")
+        
+        # Clean up game launcher
+        if hasattr(self, 'game_launcher') and self.game_launcher:
+            self.game_launcher.stop_game()
+            self.game_launcher.monitor_running = False
+            logger.info("Game launcher stopped")
         
         if hasattr(self, 'video_player') and self.video_player:
             self.video_player.stop()
