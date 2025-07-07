@@ -530,8 +530,8 @@ class DoomBoxKiosk:
         logger.info(f"Game state changed: {old_state} -> {new_state} (player: {player_name})")
         
         if new_state in ["starting", "running"]:
-            # Game is starting or running - completely hide kiosk and stop all resources
-            logger.info("Game starting - hiding kiosk completely and stopping all resources")
+            # Game is starting or running - properly hide kiosk and stop all resources
+            logger.info("Game starting - hiding kiosk and stopping all resources for game")
             
             # Stop video player entirely to free up resources
             if self.video_player:
@@ -539,12 +539,18 @@ class DoomBoxKiosk:
                 self.video_player = None  # Completely remove reference
                 logger.info("Video player stopped and destroyed")
             
-            # Hide kiosk window completely - quit pygame display to free GPU resources
+            # Hide pygame window properly without quitting display subsystem
             try:
-                pygame.display.quit()
-                logger.info("Kiosk display completely closed to free GPU resources")
+                # Minimize/iconify the window to give dsda-doom full access to display
+                pygame.display.iconify()
+                # Create a minimal black surface to reduce GPU usage
+                black_surface = pygame.Surface((1, 1))
+                black_surface.fill((0, 0, 0))
+                self.screen.blit(black_surface, (0, 0))
+                pygame.display.flip()
+                logger.info("Kiosk window minimized and display freed for game")
             except Exception as e:
-                logger.warning(f"Could not close kiosk display: {e}")
+                logger.warning(f"Could not minimize kiosk window: {e}")
             
             # Set video as stopped and mark kiosk as hidden
             self.video_paused = True
@@ -557,26 +563,14 @@ class DoomBoxKiosk:
             # Wait a moment for game to fully exit and release resources
             time.sleep(2)
             
-            # Restore kiosk display
+            # Restore kiosk display - just make sure window is restored
             try:
-                # Reinitialize pygame display
-                pygame.display.init()
-                self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
-                pygame.display.set_caption("shmegl's DoomBox")
+                # Restore the window from minimized state
+                # Don't need to reinitialize pygame display as it's still active
                 pygame.mouse.set_visible(False)
-                logger.info("Kiosk display fully restored")
+                logger.info("Kiosk window restored to foreground")
             except Exception as e:
-                logger.error(f"Could not restore kiosk display: {e}")
-                # Try again after a longer delay
-                time.sleep(3)
-                try:
-                    pygame.display.init()
-                    self.screen = pygame.display.set_mode(self.DISPLAY_SIZE, pygame.FULLSCREEN)
-                    pygame.display.set_caption("shmegl's DoomBox")
-                    pygame.mouse.set_visible(False)
-                    logger.info("Kiosk display restored on retry")
-                except Exception as e2:
-                    logger.error(f"Failed to restore kiosk display on retry: {e2}")
+                logger.error(f"Could not restore kiosk window: {e}")
             
             # Restart video player
             self.setup_hardware_video_player()

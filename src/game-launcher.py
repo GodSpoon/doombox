@@ -274,39 +274,21 @@ class GameLauncher:
             os.makedirs(config_dir, exist_ok=True)
             
             # Enhanced dsda-doom configuration with strong fullscreen enforcement and controller support
-            config_content = """# DoomBox dsda-doom configuration
-# Controller/Joystick settings - ENABLE CONTROLLER SUPPORT
+            config_content = """# DoomBox dsda-doom configuration - simplified for compatibility
+# Controller/Joystick settings
 use_joystick 1
 joystick_index 0
 joy_sensitivity 10
-joy_left 0
-joy_right 1
-joy_up 2
-joy_down 3
-joy_fire 4
-joy_use 5
-joy_run 6
-joy_strafe 7
-joy_menu 8
-joy_weapon_next 9
-joy_weapon_prev 10
-joy_speed 11
 
-# Video settings - ENFORCED FULLSCREEN
+# Video settings - FULLSCREEN ONLY
 screen_width 1280
 screen_height 960
 use_fullscreen 1
 fullscreen 1
-exclusive_fullscreen 1
 render_vsync 1
-gl_finish 1
-use_gl_surface 1
 
 # Display settings
 aspect_ratio 1.33
-render_resolution 1280x960
-render_screen_multiply 1
-video_mode 1
 
 # Audio settings
 snd_sfxvolume 8
@@ -317,14 +299,7 @@ default_skill 3
 autorun 1
 mouse_sensitivity 5
 
-# Window management - prevent windowed mode
-windowed_mode 0
-allow_windowed 0
-window_focused 1
-force_fullscreen 1
-
 # Performance settings
-render_multithread 1
 use_hardware_gamma 1
 
 # Save settings
@@ -369,25 +344,33 @@ demo_dir """ + self.doom_config['demo_dir'] + """
                 '-width', '1280',
                 '-height', '960',
                 '-fullscreen',
-                '-exclusive_fullscreen',
-                '-force_fullscreen',
-                '-aspect', '1.33',
-                '-nowindow',
-                '-nograb'
+                '-aspect', '1.33'
             ]
             
             logger.info(f"Launching game for player: {player_name}")
             logger.info(f"Command: {' '.join(cmd)}")
             
-            # Enhanced environment for proper controller and display support
+            # Enhanced environment for proper controller and display support + fullscreen enforcement
             game_env = dict(os.environ, **{
                 'SDL_VIDEODRIVER': 'x11',
                 'DISPLAY': ':0',
                 'SDL_VIDEO_WINDOW_POS': '0,0',
-                'SDL_VIDEO_CENTERED': '1',
+                'SDL_VIDEO_CENTERED': '0',  # Don't center, use full screen
+                'SDL_VIDEO_FULLSCREEN_HEAD': '0',  # Use first display
+                'SDL_VIDEO_FULLSCREEN_DISPLAY': '0',  # Use display 0
+                'SDL_VIDEO_ALLOW_SCREENSAVER': '0',  # Disable screensaver
                 'SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS': '1',
-                'SDL_GAMECONTROLLER_ALLOW_BACKGROUND_EVENTS': '1'
+                'SDL_GAMECONTROLLER_ALLOW_BACKGROUND_EVENTS': '1',
+                # Force window manager to treat as fullscreen
+                'SDL_VIDEO_X11_WMCLASS': 'dsda-doom',
+                # Disable compositing for better performance
+                'KWIN_TRIPLE_BUFFER': '0',
+                'COMPIZ_OPTIONS': 'NO_EFFECTS'
             })
+            
+            # Brief delay to ensure kiosk has properly minimized and freed the display
+            logger.info("Waiting for kiosk to fully minimize...")
+            time.sleep(1)
             
             # Launch the game with priority to ensure it gets focus
             self.game_process = subprocess.Popen(
