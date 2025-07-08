@@ -30,6 +30,42 @@ An interactive promo kiosk built on Radxa Zero that displays a QR code for user 
 - **Database**: SQLite
 - **Communication**: MQTT (mosquitto)
 
+## 📁 Project Structure
+
+The project has been reorganized for better maintainability:
+
+```
+doombox/
+├── src/                     # Main application source code
+│   ├── kiosk-manager.py    # Main kiosk application  
+│   ├── game-launcher.py    # Game launching logic
+│   ├── controller-input.py # Controller management
+│   └── mqtt-client.py      # MQTT integration
+├── scripts/                 # Utility scripts by category
+│   ├── mqtt/               # MQTT setup and testing
+│   ├── video/              # Video optimization
+│   └── system/             # System monitoring
+├── tests/                   # All tests organized by function
+│   ├── mqtt/               # MQTT testing
+│   └── integration/        # Integration testing  
+├── tools/                   # Standalone utilities
+│   ├── mqtt_commands.py    # Command line MQTT client
+│   └── webhook.py          # Webhook bridge
+├── config/                  # Configuration files
+└── Makefile                # Simple command shortcuts
+```
+
+### Using the Makefile
+
+```bash
+make help          # Show available commands
+make setup         # Run full setup
+make start         # Start the kiosk
+make test          # Run all tests
+make test-mqtt     # Test MQTT only
+make clean         # Clean logs and temp files
+```
+
 ## Quick Setup
 
 ### 1. Clone the Repository on Your Radxa Zero
@@ -39,9 +75,9 @@ An interactive promo kiosk built on Radxa Zero that displays a QR code for user 
 git clone https://github.com/your-username/doombox.git
 cd doombox
 
-# Verify you have all required files
+# Verify you have the organized structure
 ls -la
-# Should show: kiosk.py, setup.sh, config.py, webhook.py, index.html, etc.
+# Should show: src/, scripts/, tests/, tools/, config/, setup.sh, etc.
 ```
 
 ### 2. Run the Setup Script as Root
