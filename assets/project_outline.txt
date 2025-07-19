@@ -1,0 +1,59 @@
+Project Outline: Radxa Zero QR-to-Doom Gaming Kiosk
+1. Project Overview
+Objective:
+Develop an interactive kiosk application for the Radxa Zero single-board computer that displays a QR code, collects user information via a web form, verifies Instagram follow, launches Doom with the user's name, tracks high scores, and awards a prize to the top player.
+
+2. System Architecture
+Hardware:
+
+Radxa Zero SBC
+
+HDMI or USB display (touch optional)
+
+dualshock 4 bluetooth game controller (already paired, configured in dsda-doom and connects at boot)
+
+Network connectivity (WiFi/Ethernet)
+
+Software Components:
+
+GO (gdo as needed) main application
+
+cloudflare tunnel to host the game at https://petrafied-doom.spoon.rip (I own the spoon.rip domain)
+
+Go/nginx web server/app for form at https://petrafied-doom.spoon.rip that asks for player name and email address, as well as instructions to follow @shmegl on instagram and share their last post (if you don't, your game won't count) and a confirmation box + start button to trigger the game
+
+QR code generation and display (on the kiosk main menu) that links to a public page https://petrafied-doom.spoon.rip 
+
+Doom (dsda-doom) game integration 
+
+High score tracking system (Lightweight database or JSON)
+
+3. Functional Modules
+
+3.1 QR Code Display
+Generate and display a QR code on the kiosk screen.
+
+QR code links to a local web form for user registration.
+
+3.2 Web Form & User Registration
+Web form collects:
+
+Name
+
+Email address
+
+Confirmation of following @shmegl on Instagram (https://www.instagram.com/shmegl) and sharing their most recent post
+
+Form submission button "Start Game" that triggers game launch.
+
+3.4 Doom Game Integration
+Launch Doom with the registered name as the player name.
+
+Monitor game process; on player death, exit to QR menu.
+
+Total score overlay (via dsda-doom or custom overlay)
+
+3.5 Score Tracking & Prize Logic
+Record each player's score and details.
+
+Show a top 10 scores and player names on the kiosk screen
