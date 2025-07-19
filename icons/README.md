@@ -1,1 +1,0 @@
-Pixel icons from https://github.com/hackernoon/pixel-icon-library
